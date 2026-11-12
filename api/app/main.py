@@ -12,6 +12,8 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
+from . import assist, llm
+
 ROOT = Path(__file__).resolve().parents[2]
 DATA = Path(os.environ.get("ATELIER_DATA", ROOT / "data")).expanduser()
 WEB = ROOT / "web" / "dist"
@@ -71,6 +73,19 @@ def delete_diagram(doc_id: str):
         raise HTTPException(404, f"no diagram {doc_id}")
     p.unlink()
     return {"deleted": doc_id}
+
+
+@app.get("/api/ai")
+def ai_status():
+    """Whether the chat has the live model, and which."""
+    return llm.status()
+
+
+@app.post("/api/assist")
+def assist_message(body: dict = Body(..., examples=[{"doc": {"id": "d-1", "name": "x", "elements": [], "arrows": []}, "selected": [], "text": "draw a pipeline: Question -> Embed -> Retrieve"}])):
+    """One chat message: the diagram changed by the AI's tools (not saved here: the editor saves it), its reply,
+    and the steps it took."""
+    return assist.assist(body)
 
 
 if WEB.exists():

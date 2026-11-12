@@ -80,7 +80,7 @@ def test_draw_by_hand(page, base_url, data, errors):
     expect(page.locator(f"{NODE}-text")).to_have_count(1)
     expect(page.locator(f"{NODE}-box")).to_have_count(1)
     expect(page.locator(".react-flow__edge")).to_have_count(1)
-    doc = json.loads(next(data.glob("*.json")).read_text())
+    doc = next(d for d in (json.loads(f.read_text()) for f in data.glob("*.json")) if d["name"] == "RAG pipeline")
     assert doc["name"] == "RAG pipeline" and any(e.get("title") == "Embed" and e["color"] == "violet" for e in doc["elements"])
 
     # export: a PNG download

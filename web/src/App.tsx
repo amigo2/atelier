@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, type Listing } from './api'
 import { NODE_TYPES } from './components/Shapes'
 import { Inspector } from './components/Inspector'
+import { Chat } from './components/Chat'
 import { exportPng } from './exportPng'
 import { fromDoc, newId, toDoc, type ElData, type Kind } from './model'
 import { useApp } from './store'
@@ -92,6 +93,10 @@ function Editor() {
         <b className="brand">✦ Atelier</b>
         <input className="name" value={name} onChange={(e) => useApp.getState().rename(e.target.value)} aria-label="Diagram name" />
         <span className="saved">{saved ? 'Saved' : 'Saving…'}</span>
+        <span className="sep" />
+        <nav className="tools" aria-label="Add">
+          {TOOLS.map((t) => <button key={t.label} onClick={() => add(t.kind, t.data)} title={t.hint}>{t.label}</button>)}
+        </nav>
         <span className="grow" />
         <button onClick={fresh} title="Start a new diagram">New</button>
         <div className="open">
@@ -107,10 +112,7 @@ function Editor() {
         <button onClick={() => useApp.getState().redo()} disabled={!future.length} title="Redo (⇧⌘Z)">↷</button>
         <button className="primary" onClick={() => exportPng(nodes, edges, name)} disabled={!nodes.length} title="Download the diagram as a PNG">Export PNG</button>
       </header>
-      <nav className="tools" aria-label="Add">
-        {TOOLS.map((t) => <button key={t.label} onClick={() => add(t.kind, t.data)} title={t.hint}>{t.label}</button>)}
-        <p className="tip">Drag from a dot on a shape's side to another shape to draw an arrow. Double-click to edit words.</p>
-      </nav>
+      <Chat />
       <main className="canvas" ref={box}>
         <ReactFlow nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           onConnect={onConnect} onConnectEnd={onConnectEnd} connectionRadius={30} onNodeDragStart={checkpoint} connectionMode={ConnectionMode.Loose} deleteKeyCode={['Backspace', 'Delete']}
@@ -119,7 +121,7 @@ function Editor() {
           <Background gap={16} size={1} color="#d9dde8" />
           <Controls showInteractive={false} />
         </ReactFlow>
-        {!nodes.length && <div className="empty">Add a card, a title or a box from the left to start.</div>}
+        {!nodes.length && <div className="empty">Ask the AI on the left, or add a card, a title or a box from the top.<br />Drag from a dot on a shape’s side to another shape to draw an arrow; double-click to edit words.</div>}
       </main>
       <Inspector />
     </div>

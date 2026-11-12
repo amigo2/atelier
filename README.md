@@ -1,7 +1,7 @@
 # ✦ Atelier
 
 A diagram editor for clean architecture and pipeline visuals (cards, titles, labels, boxes, pills, arrows),
-drawn by hand now and with an AI assistant next. Local: diagrams are JSON files on this machine.
+drawn by hand or by an AI assistant with tools. Local: diagrams are JSON files on this machine.
 
 ## Run it
 ```bash
@@ -20,6 +20,15 @@ Diagrams go to `data/` (git-ignored); `ATELIER_DATA=/somewhere` for another fold
 - ⌘Z undo · ⇧⌘Z redo · ⌘D duplicate · Delete removes (a shape's arrows go with it).
 - **Export PNG**: cropped to the drawing, 2x, on white. Saved as you go.
 
+## The AI chat
+On the left. Describe a diagram or a change ("draw a RAG pipeline…", "make these teal", "group these as AWS"); select
+shapes first to mean "this". Each AI message is one undo step (Undo in the chat, or ⌘Z).
+It has 8 tools: read_diagram, add_element, update_element, delete_elements, connect, arrange, group, clear
+(`api/app/assist.py`). Model: Claude Sonnet 5.5 via OpenRouter, key in `~/.sentinel/openrouter.env` (shared with
+Sentinel) or `OPENROUTER_API_KEY`; `ATELIER_MODEL` picks another. Without a key a scripted reader handles plain
+requests ("draw a pipeline: A -> B -> C", "add a card X", "connect A to B", "make X amber", "delete X").
+Tests never call the model (`ATELIER_LIVE_MODEL=1` lets e2e use it).
+
 ## Tests
 ```bash
 cd api && .venv/bin/pytest -q            # the API
@@ -27,6 +36,5 @@ cd .. && api/.venv/bin/pytest e2e        # the editor in Chrome (build web first
 ```
 
 ## Next
-1. AI assistant beside the canvas, with tools (add, update, delete, connect, group, tidy, read).
-2. Tidy (automatic layout) and templates.
-3. Acceptance: "draw the RAG pipeline" gets close to `rag-pipeline.png`.
+1. Tidy (automatic layout, elkjs) and templates.
+2. More exports (SVG, copy to clipboard).

@@ -32,6 +32,7 @@ export interface State {
   redo: () => void
   setEditing: (id: string | null) => void
   load: (id: string, name: string, s: Snap) => void
+  replace: (s: Snap) => void
   rename: (name: string) => void
   markSaved: () => void
 }
@@ -127,6 +128,12 @@ export const useApp = create<State>((set, get) => ({
   setEditing: (id) => {
     if (id && get().editing !== id) get().checkpoint() // the edit, whatever is typed, is one step
     set({ editing: id })
+  },
+  // the AI's change, as one step; what was selected stays selected if it's still there
+  replace: (next) => {
+    get().checkpoint()
+    const sel = new Set(get().nodes.filter((n) => n.selected).map((n) => n.id))
+    set({ nodes: next.nodes.map((n) => (sel.has(n.id) ? { ...n, selected: true } : n)), edges: next.edges, editing: null, saved: false })
   },
   load: (id, name, s) => set({ id, name, ...s, past: [], future: [], editing: null, saved: true }),
   rename: (name) => set({ name, saved: false }),

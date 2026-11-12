@@ -77,7 +77,7 @@ export function Pill({ id, data, selected }: NodeProps<El>) {
   const c = PALETTE[data.color]
   return (
     <Frame id={id} selected={selected} min={[40, 22]}>
-      <div className="pill" style={{ background: c.bg, color: c.fg }}>
+      <div className="pill" style={{ background: c.bg, color: c.fg, borderColor: c.line }}>
         <Field id={id} k="text" value={data.text} className="pill-v" placeholder="label" />
       </div>
     </Frame>

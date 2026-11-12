@@ -3,6 +3,7 @@
     cd atelier && (cd web && npm run build) && api/.venv/bin/pytest e2e          # headless
     api/.venv/bin/pytest e2e --headed --slowmo 300                              # watch it
 """
+import os
 import socket
 import subprocess
 import tempfile
@@ -24,8 +25,11 @@ def _free_port() -> int:
 @pytest.fixture(scope="session")
 def server():
     port, data = _free_port(), tempfile.mkdtemp(prefix="atelier-e2e-")
+    env = {"ATELIER_DATA": data, "PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "")}
+    if os.environ.get("ATELIER_LIVE_MODEL") != "1":       # scripted chat: tests never call the model
+        env["ATELIER_OPENROUTER_ENV"] = "/nonexistent"
     proc = subprocess.Popen([str(API / ".venv/bin/uvicorn"), "app.main:app", "--port", str(port)], cwd=API,
-                            env={"ATELIER_DATA": data, "PATH": "/usr/bin:/bin"}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     base = f"http://127.0.0.1:{port}"
     for _ in range(100):
         try:
