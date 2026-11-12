@@ -40,7 +40,7 @@ export function Chat() {
       const changed = r.steps.length > 0
       if (changed) {
         s.replace(fromDoc(r.doc))
-        if (useApp.getState().nodes.length !== before) setTimeout(() => rf.fitView({ padding: 0.2, duration: 300 }), 30)
+        if (useApp.getState().nodes.length !== before) setTimeout(() => rf.fitView({ padding: 0.2, duration: 300, maxZoom: 1 }), 30)
       }
       setMsgs((m) => [
         ...m,

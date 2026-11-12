@@ -34,7 +34,7 @@ function Editor() {
   const fit = () => setTimeout(() => {
     const f = useApp.getState().frame
     if (f) rf.fitBounds({ x: f.x, y: f.y - 30, width: f.w, height: f.h + 30 }, { padding: 0.06 })
-    else rf.fitView({ padding: 0.2 })
+    else rf.fitView({ padding: 0.2, maxZoom: 1 })
   }, 50)
 
   // add one where the view's centre is
