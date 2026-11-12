@@ -4,7 +4,7 @@ import { useApp } from '../store'
 
 const SIZES: TextSize[] = ['title', 'heading', 'label', 'body']
 
-export function Inspector() {
+function Details() {
   const nodes = useApp((s) => s.nodes)
   const edges = useApp((s) => s.edges)
   const s = useApp.getState()
@@ -14,12 +14,12 @@ export function Inspector() {
   if (sel.length > 1) {
     const kinds = Object.entries(sel.reduce<Record<string, number>>((m, n) => ({ ...m, [n.type!]: (m[n.type!] ?? 0) + 1 }), {}))
     return (
-      <aside className="insp" aria-label="Selected">
+      <>
         <h3>{sel.length} selected</h3>
         <p className="faint">{kinds.map(([k, n]) => `${n} ${k}${n > 1 ? 's' : ''}`).join(' · ')}</p>
         <div className="row"><button onClick={s.duplicate}>Duplicate</button><button className="bad" onClick={() => s.remove(sel.map((n) => n.id))}>Delete</button></div>
         <p className="faint" style={{ marginTop: 14 }}>To change them all (colour, words, line them up, put a box around them), ask the AI: "make these teal".</p>
-      </aside>
+      </>
     )
   }
 
@@ -27,7 +27,7 @@ export function Inspector() {
     const n = sel[0], d = n.data
     const set = (patch: Partial<typeof d>) => { s.checkpoint(); s.update(n.id, patch) }
     return (
-      <aside className="insp" aria-label="Selected">
+      <>
         <h3>{n.type === 'text' ? `Text · ${d.size}` : n.type![0].toUpperCase() + n.type!.slice(1)}</h3>
         <label>Colour</label>
         <div className="swatches">
@@ -64,24 +64,40 @@ export function Inspector() {
           <button onClick={s.duplicate} title="Duplicate (⌘D)">Duplicate</button>
         </div>
         <button className="bad wide" onClick={() => s.remove([n.id])}>Delete</button>
-      </aside>
+      </>
     )
   }
 
   if (edge) return (
-    <aside className="insp" aria-label="Selected arrow">
+    <>
       <h3>Arrow</h3>
       <label htmlFor="elabel">Label</label>
       <input id="elabel" value={String(edge.label ?? '')} placeholder="e.g. HTTPS 443" onFocus={s.checkpoint} onChange={(e) => s.updateEdge(edge.id, e.target.value)} />
       <button className="bad wide" onClick={() => s.remove([edge.id])}>Delete</button>
-    </aside>
+    </>
   )
 
   return (
-    <aside className="insp">
+    <>
       <h3>Nothing selected</h3>
       <p className="faint">Click a shape or an arrow to change it. Drag on the canvas, or Shift-click, to select several. Space + drag moves around.</p>
       <p className="faint">⌘Z undo · ⇧⌘Z redo · ⌘A select all · ⌘D duplicate · Enter edits · Delete removes</p>
+    </>
+  )
+}
+
+// the right column; › hides it to a thin rail (‹ brings it back), remembered per person
+export function Inspector({ open, toggle }: { open: boolean; toggle: () => void }) {
+  if (!open) return (
+    <aside className="insp shut" aria-label="Details (hidden)">
+      <button className="fold" onClick={toggle} title="Show the details panel" aria-label="Show details">‹</button>
+      <span className="rail-label">Details</span>
+    </aside>
+  )
+  return (
+    <aside className="insp" aria-label="Details">
+      <button className="fold" onClick={toggle} title="Hide the details panel" aria-label="Hide details">›</button>
+      <Details />
     </aside>
   )
 }

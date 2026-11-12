@@ -59,3 +59,17 @@ def test_select_delete_pan(page, base_url, errors):
     assert abs(cards.nth(0).bounding_box()["x"] - (x0 + 150)) < 3
     expect(page.locator(".react-flow__node-card.selected")).to_have_count(0)
     assert errors == []
+
+
+def test_details_panel_folds(page, base_url):
+    page.set_viewport_size({"width": 1500, "height": 900})
+    page.goto(base_url + "/")
+    canvas = page.locator(".canvas")
+    w = canvas.bounding_box()["width"]
+    page.get_by_role("button", name="Hide details").click()
+    expect(page.locator(".insp.shut")).to_be_visible()
+    assert canvas.bounding_box()["width"] > w + 200                              # the canvas takes the room
+    page.reload()                                                                # remembered
+    expect(page.locator(".insp.shut")).to_be_visible()
+    page.get_by_role("button", name="Show details").click()
+    expect(page.locator(".insp h3")).to_be_visible()

@@ -19,7 +19,7 @@ button.wide { width: 100%; margin-top: 10px; }
 input, textarea { font: inherit; font-size: 13px; color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; width: 100%; background: #fff; resize: vertical; }
 input:focus, textarea:focus { outline: 2px solid var(--accent-bg); border-color: var(--accent); }
 
-.app { height: 100%; display: grid; grid-template-columns: 330px minmax(0, 1fr) 250px; grid-template-rows: 52px minmax(0, 1fr); grid-template-areas: "top top top" "chat canvas insp"; }
+.app { height: 100%; display: grid; grid-template-columns: 330px minmax(0, 1fr) var(--insp, 250px); grid-template-rows: 52px minmax(0, 1fr); grid-template-areas: "top top top" "chat canvas insp"; }
 .top { grid-area: top; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .brand { font-size: 15px; letter-spacing: -.01em; margin-right: 6px; }
 .name { width: 240px; border-color: transparent; font-weight: 600; font-size: 14px; }
@@ -59,7 +59,8 @@ button.link:hover:not(:disabled) { background: none; text-decoration: underline;
 .canvas { grid-area: canvas; position: relative; min-width: 0; }
 .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: 14px; pointer-events: none; }
 
-.insp { grid-area: insp; background: var(--panel); border-left: 1px solid var(--line); padding: 14px; overflow: auto; }
+.app.insp-shut { --insp: 34px; }
+.insp { position: relative; grid-area: insp; background: var(--panel); border-left: 1px solid var(--line); padding: 14px; overflow: auto; }
 .insp h3 { margin: 0 0 12px; font-size: 14px; }
 .insp label { display: block; margin: 12px 0 5px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .insp .faint { color: var(--faint); font-size: 12px; line-height: 1.5; margin: 0 0 8px; }
@@ -108,3 +109,9 @@ textarea.edit { font: inherit; color: inherit; letter-spacing: inherit; text-tra
 .react-flow__pane.draggable { cursor: grab; } .react-flow__pane.dragging { cursor: grabbing; }
 .react-flow__nodesselection-rect { border-color: var(--accent); background: rgba(58,109,240,.06); }
 .react-flow__selection { border-color: var(--accent) !important; background: rgba(58,109,240,.08) !important; }
+
+.fold { position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; padding: 0; line-height: 1; font-size: 15px; color: var(--muted); }
+.insp:not(.shut) h3 { padding-right: 30px; }
+.insp.shut { padding: 10px 0; display: flex; flex-direction: column; align-items: center; gap: 12px; overflow: hidden; }
+.insp.shut .fold { position: static; }
+.rail-label { writing-mode: vertical-rl; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }

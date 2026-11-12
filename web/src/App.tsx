@@ -27,6 +27,8 @@ function Editor() {
   const rf = useReactFlow()
   const [list, setList] = useState<Listing[] | null>(null)
   const box = useRef<HTMLDivElement>(null)
+  const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atelier.details') !== 'shut')
+  const toggleInsp = () => setInspOpen((o) => { localStorage.setItem('atelier.details', o ? 'shut' : 'open'); return !o })
 
   // add one where the view's centre is
   const add = (kind: Kind, data?: Partial<ElData>) => {
@@ -89,7 +91,7 @@ function Editor() {
   const open = async (id: string) => { const d = await api.get(id); useApp.getState().load(d.id, d.name, fromDoc(d)); localStorage.setItem(LAST, d.id); setList(null); setTimeout(() => rf.fitView({ padding: 0.2 }), 50) }
 
   return (
-    <div className="app">
+    <div className={`app ${inspOpen ? '' : 'insp-shut'}`}>
       <header className="top">
         <b className="brand">✦ Atelier</b>
         <input className="name" value={name} onChange={(e) => useApp.getState().rename(e.target.value)} aria-label="Diagram name" />
@@ -126,7 +128,7 @@ function Editor() {
         </ReactFlow>
         {!nodes.length && <div className="empty">Ask the AI on the left, or add a card, a title or a box from the top.<br />Drag from a dot on a shape’s side to another shape to draw an arrow; double-click to edit words.<br />Drag on the canvas to select · Space + drag to move around</div>}
       </main>
-      <Inspector />
+      <Inspector open={inspOpen} toggle={toggleInsp} />
     </div>
   )
 }
