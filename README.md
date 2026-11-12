@@ -10,7 +10,9 @@ cd api && python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app.main:app --port 8100          # http://localhost:8100
 ```
 While working on the editor: `cd web && npm run dev` (http://localhost:5174, proxies /api to :8100).
-Diagrams go to `data/` (git-ignored); `ATELIER_DATA=/somewhere` for another folder.
+Diagrams save as you draw to `data/` (git-ignored), one JSON file each; `ATELIER_DATA=/somewhere` for another
+folder. **Open…** (⌘O) lists them: open, rename, duplicate (save as), download as a `.atelier.json` file to keep
+anywhere, delete, or import a file. ⌘S saves now. PNG exports go to your browser's Downloads folder.
 
 ## Use it
 - **Add** from the left: Card, Title, Heading, Label, Text, Box, Pill (placed in the middle of the view).

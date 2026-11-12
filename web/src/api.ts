@@ -1,7 +1,7 @@
 // The Atelier API: diagrams saved as JSON files, one per diagram, on this machine.
 import type { Doc } from './model'
 
-export type Listing = { id: string; name: string; updated: number }
+export type Listing = { id: string; name: string; updated: number; elements: number; framed: boolean }
 export type AiStatus = { live: boolean; model: string | null; provider: string | null }
 export type AssistReply = { reply: string; doc: Doc; steps: string[]; live: boolean; fallback?: boolean }
 export type ChatTurn = { role: 'user' | 'assistant'; content: string }

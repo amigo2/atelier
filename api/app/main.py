@@ -39,7 +39,9 @@ def list_diagrams():
     out = []
     for f in DATA.glob("*.json") if DATA.exists() else []:
         try:
-            out.append({"id": f.stem, "name": json.loads(f.read_text()).get("name") or f.stem, "updated": int(f.stat().st_mtime)})
+            d = json.loads(f.read_text())
+            out.append({"id": f.stem, "name": d.get("name") or f.stem, "updated": int(f.stat().st_mtime),
+                        "elements": len(d.get("elements") or []), "framed": bool(d.get("frame"))})
         except (OSError, json.JSONDecodeError):
             continue
     return sorted(out, key=lambda d: -d["updated"])

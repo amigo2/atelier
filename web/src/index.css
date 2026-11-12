@@ -26,11 +26,6 @@ input:focus, textarea:focus { outline: 2px solid var(--accent-bg); border-color:
 .name:hover { border-color: var(--line); }
 .saved { font-size: 12px; color: var(--faint); }
 .grow { flex: 1; }
-.open { position: relative; }
-.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 280px; max-height: 60vh; overflow: auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 34px rgba(26,34,51,.14); padding: 6px; }
-.menu button { display: flex; justify-content: space-between; gap: 12px; width: 100%; border: none; text-align: left; }
-.menu button span { color: var(--faint); font-size: 11px; }
-.menu p { margin: 8px 10px; color: var(--muted); font-size: 13px; }
 
 .sep { width: 1px; height: 24px; background: var(--line); margin: 0 4px; }
 .tools { display: flex; gap: 4px; }
@@ -121,3 +116,26 @@ textarea.edit { font: inherit; color: inherit; letter-spacing: inherit; text-tra
 .xframe-l { position: absolute; top: -24px; left: 0; font-size: 12px; font-weight: 600; color: #5b7be0; white-space: nowrap; }
 button.toggle.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 .preset { font: inherit; font-size: 12.5px; border: 1px solid var(--line); border-radius: 7px; padding: 5px 6px; background: #fff; color: var(--ink); }
+
+/* your diagrams */
+.scrim { position: fixed; inset: 0; z-index: 50; background: rgba(26,34,51,.28); display: grid; place-items: center; }
+.dialog { width: min(760px, 92vw); max-height: 80vh; display: flex; flex-direction: column; background: #fff; border-radius: 14px; box-shadow: 0 24px 60px rgba(26,34,51,.25); }
+.dlg-h { display: flex; align-items: center; gap: 8px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.dlg-h h2 { font-size: 16px; margin: 0 8px 0 0; white-space: nowrap; }
+.dlg-h .search { flex: 1; }
+.dlg-h .x { border: none; font-size: 14px; color: var(--muted); }
+.dlg-list { overflow: auto; padding: 8px 10px; }
+.dlg-list > .faint { padding: 18px 8px; color: var(--faint); font-size: 13px; }
+.dlg-row { display: flex; align-items: center; gap: 10px; padding: 4px; border-radius: 9px; }
+.dlg-row:hover { background: #f7f8fb; } .dlg-row.cur { background: var(--accent-bg); }
+.dlg-name { flex: 1; min-width: 0; border: none; background: none; text-align: left; display: grid; gap: 2px; padding: 7px 8px; }
+.dlg-name:hover:not(:disabled) { background: none; }
+.dlg-name b { font-size: 14px; } .dlg-name em { font-style: normal; font-size: 11px; color: var(--accent); margin-left: 8px; }
+.dlg-name span { font-size: 12px; color: var(--faint); }
+.dlg-row .rn { flex: 1; }
+.acts, .confirm { display: flex; gap: 4px; align-items: center; font-size: 12.5px; white-space: nowrap; }
+.acts button, .confirm button { padding: 4px 9px; font-size: 12px; }
+.acts { opacity: .35; } .dlg-row:hover .acts, .dlg-row.cur .acts { opacity: 1; }
+.err { color: var(--bad); font-size: 13px; margin: 10px 18px 0; }
+.dlg-f { margin: 0; padding: 10px 18px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--faint); }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 60; background: var(--ink); color: #fff; font-size: 13px; padding: 8px 14px; border-radius: 8px; box-shadow: 0 8px 24px rgba(26,34,51,.25); }

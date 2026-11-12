@@ -2,7 +2,8 @@
 // colour and words on the right, the diagram's name, undo and export along the top. Saved as you go.
 import { Background, BackgroundVariant, ConnectionMode, Controls, ReactFlow, ReactFlowProvider, SelectionMode, ViewportPortal, useReactFlow, type FinalConnectionState } from '@xyflow/react'
 import { useEffect, useRef, useState } from 'react'
-import { api, type Listing } from './api'
+import { api } from './api'
+import { OpenDialog, uniqueName } from './components/OpenDialog'
 import { NODE_TYPES } from './components/Shapes'
 import { Inspector } from './components/Inspector'
 import { Chat } from './components/Chat'
@@ -25,7 +26,8 @@ const TOOLS: { label: string; kind: Kind; data?: Partial<ElData>; hint: string }
 function Editor() {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, checkpoint, name, saved, past, future, frame } = useApp()
   const rf = useReactFlow()
-  const [list, setList] = useState<Listing[] | null>(null)
+  const [dialog, setDialog] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atelier.details') !== 'shut')
   const toggleInsp = () => setInspOpen((o) => { localStorage.setItem('atelier.details', o ? 'shut' : 'open'); return !o })
@@ -52,24 +54,28 @@ function Editor() {
     if (id) api.get(id).then((d) => { useApp.getState().load(d.id, d.name, fromDoc(d), d.frame ?? null); fit() }).catch(() => localStorage.removeItem(LAST))
   }, [rf])
 
-  // save as you go, a moment after the last change
+  // save now (⌘S), and as you go, a moment after the last change
+  const saveNow = async () => {
+    const s = useApp.getState(), at = { nodes: s.nodes, edges: s.edges, name: s.name, frame: s.frame }
+    await api.save(toDoc(s.id, s.name, s.nodes, s.edges, s.frame))
+    localStorage.setItem(LAST, s.id)
+    const now = useApp.getState()
+    if (now.nodes === at.nodes && now.edges === at.edges && now.name === at.name && now.frame === at.frame) now.markSaved()
+  }
   useEffect(() => {
     if (saved) return
-    const t = setTimeout(async () => {
-      const s = useApp.getState(), at = { nodes: s.nodes, edges: s.edges, name: s.name, frame: s.frame }
-      await api.save(toDoc(s.id, s.name, s.nodes, s.edges, s.frame))
-      localStorage.setItem(LAST, s.id)
-      const now = useApp.getState()
-      if (now.nodes === at.nodes && now.edges === at.edges && now.name === at.name && now.frame === at.frame) now.markSaved()
-    }, 600)
+    const t = setTimeout(saveNow, 600)
     return () => clearTimeout(t)
   }, [saved, nodes, edges, name, frame])
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 1600); return () => clearTimeout(t) }, [toast])
 
   // keys: undo, redo, duplicate, and Escape to stop editing / deselect
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest('input, textarea, select')) return
       const mod = e.metaKey || e.ctrlKey, s = useApp.getState()
+      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow().then(() => setToast(`Saved “${useApp.getState().name}”`)); return }
+      if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); setDialog(true); return }
+      if ((e.target as HTMLElement).closest('input, textarea, select')) return
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) s.redo(); else s.undo() }
       else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); s.redo() }
       else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); s.duplicate() }
@@ -94,30 +100,22 @@ function Editor() {
     onConnect({ source: c.fromNode.id, sourceHandle: c.fromHandle?.id ?? null, target: to, targetHandle: side })
   }
 
-  const fresh = () => { useApp.getState().load(newId('d'), 'Untitled', { nodes: [], edges: [] }); setList(null) }
-  const open = async (id: string) => { const d = await api.get(id); useApp.getState().load(d.id, d.name, fromDoc(d), d.frame ?? null); localStorage.setItem(LAST, d.id); setList(null); fit() }
+  const fresh = async () => { const list = await api.list().catch(() => []); useApp.getState().load(newId('d'), uniqueName('Untitled', list), { nodes: [], edges: [] }); setDialog(false) }
+  const open = async (id: string) => { const d = await api.get(id); useApp.getState().load(d.id, d.name, fromDoc(d), d.frame ?? null); localStorage.setItem(LAST, d.id); setDialog(false); fit() }
 
   return (
     <div className={`app ${inspOpen ? '' : 'insp-shut'}`}>
       <header className="top">
         <b className="brand">✦ Atelier</b>
         <input className="name" value={name} onChange={(e) => useApp.getState().rename(e.target.value)} aria-label="Diagram name" />
-        <span className="saved">{saved ? 'Saved' : 'Saving…'}</span>
+        <span className="saved" title="Saved as you go (⌘S saves now)">{saved ? 'Saved' : 'Saving…'}</span>
         <span className="sep" />
         <nav className="tools" aria-label="Add">
           {TOOLS.map((t) => <button key={t.label} onClick={() => add(t.kind, t.data)} title={t.hint}>{t.label}</button>)}
         </nav>
         <span className="grow" />
         <button onClick={fresh} title="Start a new diagram">New</button>
-        <div className="open">
-          <button onClick={async () => setList(list ? null : await api.list())} title="Open a saved diagram">Open ▾</button>
-          {list && (
-            <div className="menu" role="menu">
-              {list.length ? list.map((d) => <button key={d.id} role="menuitem" onClick={() => open(d.id)}>{d.name}<span>{new Date(d.updated * 1000).toLocaleString()}</span></button>)
-                : <p>No saved diagrams yet.</p>}
-            </div>
-          )}
-        </div>
+        <button onClick={() => setDialog(true)} title="Your diagrams: open, rename, duplicate, delete, download, import (⌘O)">Open…</button>
         <button onClick={() => useApp.getState().undo()} disabled={!past.length} title="Undo (⌘Z)">↶</button>
         <button onClick={() => useApp.getState().redo()} disabled={!future.length} title="Redo (⇧⌘Z)">↷</button>
         <span className="sep" />
@@ -152,6 +150,8 @@ function Editor() {
         {!nodes.length && <div className="empty">Ask the AI on the left, or add a card, a title or a box from the top.<br />Drag from a dot on a shape’s side to another shape to draw an arrow; double-click to edit words.<br />Drag on the canvas to select · Space + drag to move around</div>}
       </main>
       <Inspector open={inspOpen} toggle={toggleInsp} />
+      {dialog && <OpenDialog close={() => setDialog(false)} open={open} />}
+      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
 }
