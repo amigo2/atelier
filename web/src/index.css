@@ -102,3 +102,9 @@ textarea.edit { font: inherit; color: inherit; letter-spacing: inherit; text-tra
 .react-flow__edge-text { font-size: 11px; fill: var(--muted); }
 .react-flow__edge.selected .react-flow__edge-path { stroke: var(--accent) !important; }
 .exporting .react-flow__node.selected .card, .exporting .react-flow__node.selected .pill, .exporting .react-flow__node.selected .txt { box-shadow: none; }
+
+.sel-chip { font-size: 11.5px; color: var(--accent); background: var(--accent-bg); border-radius: 6px; padding: 3px 8px; margin-bottom: 6px; display: inline-block; }
+/* Space held: the hand */
+.react-flow__pane.draggable { cursor: grab; } .react-flow__pane.dragging { cursor: grabbing; }
+.react-flow__nodesselection-rect { border-color: var(--accent); background: rgba(58,109,240,.06); }
+.react-flow__selection { border-color: var(--accent) !important; background: rgba(58,109,240,.08) !important; }

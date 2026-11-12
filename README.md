@@ -16,7 +16,8 @@ Diagrams go to `data/` (git-ignored); `ATELIER_DATA=/somewhere` for another fold
 - **Add** from the left: Card, Title, Heading, Label, Text, Box, Pill (placed in the middle of the view).
 - **Edit words** with a double-click (or Enter on the selected one); colour, emoji and size on the right.
 - **Arrows:** drag from a dot on a shape's side and drop on another shape. Select an arrow to label it.
-- **Resize** from the corners; **move** by dragging; **select several** with Shift-click or by dragging a box.
+- **Resize** from the corners; **move** by dragging. **Select several** by dragging on the canvas, Shift-click, or ⌘A; Delete removes them all.
+- **Move around** with Space + drag (or the middle mouse button, or the trackpad); pinch or ⌘-scroll to zoom.
 - ⌘Z undo · ⇧⌘Z redo · ⌘D duplicate · Delete removes (a shape's arrows go with it).
 - **Export PNG**: cropped to the drawing, 2x, on white. Saved as you go.
 

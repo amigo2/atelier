@@ -11,12 +11,17 @@ export function Inspector() {
   const sel = nodes.filter((n) => n.selected)
   const edge = edges.find((e) => e.selected)
 
-  if (sel.length > 1) return (
-    <aside className="insp">
-      <h3>{sel.length} selected</h3>
-      <div className="row"><button onClick={s.duplicate}>Duplicate</button><button className="bad" onClick={() => s.remove(sel.map((n) => n.id))}>Delete</button></div>
-    </aside>
-  )
+  if (sel.length > 1) {
+    const kinds = Object.entries(sel.reduce<Record<string, number>>((m, n) => ({ ...m, [n.type!]: (m[n.type!] ?? 0) + 1 }), {}))
+    return (
+      <aside className="insp" aria-label="Selected">
+        <h3>{sel.length} selected</h3>
+        <p className="faint">{kinds.map(([k, n]) => `${n} ${k}${n > 1 ? 's' : ''}`).join(' · ')}</p>
+        <div className="row"><button onClick={s.duplicate}>Duplicate</button><button className="bad" onClick={() => s.remove(sel.map((n) => n.id))}>Delete</button></div>
+        <p className="faint" style={{ marginTop: 14 }}>To change them all (colour, words, line them up, put a box around them), ask the AI: "make these teal".</p>
+      </aside>
+    )
+  }
 
   if (sel.length === 1) {
     const n = sel[0], d = n.data
@@ -75,8 +80,8 @@ export function Inspector() {
   return (
     <aside className="insp">
       <h3>Nothing selected</h3>
-      <p className="faint">Click a shape or an arrow to change it. Shift-click or drag a box around several to select them all.</p>
-      <p className="faint">⌘Z undo · ⇧⌘Z redo · ⌘D duplicate · Enter edits · Delete removes</p>
+      <p className="faint">Click a shape or an arrow to change it. Drag on the canvas, or Shift-click, to select several. Space + drag moves around.</p>
+      <p className="faint">⌘Z undo · ⇧⌘Z redo · ⌘A select all · ⌘D duplicate · Enter edits · Delete removes</p>
     </aside>
   )
 }

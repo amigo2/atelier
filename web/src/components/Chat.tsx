@@ -21,6 +21,7 @@ export function Chat() {
   const [ai, setAi] = useState<AiStatus | null>(null)
   const log = useRef<HTMLDivElement>(null)
   const rf = useReactFlow()
+  const nSel = useApp((s) => s.nodes.filter((n) => n.selected).length)
 
   useEffect(() => { api.ai().then(setAi).catch(() => setAi(null)) }, [])
   useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'smooth' }) }, [msgs, busy])
@@ -74,6 +75,7 @@ export function Chat() {
         {busy && <div className="msg ai"><span className="spin" /> Drawing…</div>}
       </div>
       <div className="chat-in">
+        {nSel > 0 && <div className="sel-chip">{nSel} selected: "this" / "these" means {nSel > 1 ? 'them' : 'it'}</div>}
         <textarea value={text} rows={3} placeholder="Describe a diagram, or a change to this one" disabled={busy}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} />

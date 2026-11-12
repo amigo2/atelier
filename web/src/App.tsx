@@ -1,6 +1,6 @@
 // Atelier: a diagram editor. The canvas in the middle, what you can add on the left, the selected thing's
 // colour and words on the right, the diagram's name, undo and export along the top. Saved as you go.
-import { Background, ConnectionMode, Controls, ReactFlow, ReactFlowProvider, useReactFlow, type FinalConnectionState } from '@xyflow/react'
+import { Background, ConnectionMode, Controls, ReactFlow, ReactFlowProvider, SelectionMode, useReactFlow, type FinalConnectionState } from '@xyflow/react'
 import { useEffect, useRef, useState } from 'react'
 import { api, type Listing } from './api'
 import { NODE_TYPES } from './components/Shapes'
@@ -64,8 +64,9 @@ function Editor() {
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) s.redo(); else s.undo() }
       else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); s.redo() }
       else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); s.duplicate() }
+      else if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); useApp.setState({ nodes: s.nodes.map((n) => ({ ...n, selected: true })) }) }
       else if (e.key === 'Enter') { const one = s.nodes.filter((n) => n.selected); if (one.length === 1) { e.preventDefault(); s.setEditing(one[0].id) } }
-      else if (e.key === 'Escape') { s.setEditing(null); rf.setNodes((ns) => ns.map((n) => ({ ...n, selected: false }))) }
+      else if (e.key === 'Escape') { s.setEditing(null); useApp.setState({ nodes: s.nodes.map((n) => ({ ...n, selected: false })), edges: s.edges.map((x) => ({ ...x, selected: false })) }) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -116,12 +117,14 @@ function Editor() {
       <main className="canvas" ref={box}>
         <ReactFlow nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           onConnect={onConnect} onConnectEnd={onConnectEnd} connectionRadius={30} onNodeDragStart={checkpoint} connectionMode={ConnectionMode.Loose} deleteKeyCode={['Backspace', 'Delete']}
+          selectionOnDrag selectionMode={SelectionMode.Partial} panOnDrag={[1, 2]} panActivationKeyCode="Space" panOnScroll
+          multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
           snapToGrid snapGrid={[8, 8]} defaultViewport={{ x: 0, y: 0, zoom: 1 }} minZoom={0.2} maxZoom={3} proOptions={{ hideAttribution: true }}
           onPaneClick={() => useApp.getState().setEditing(null)}>
           <Background gap={16} size={1} color="#d9dde8" />
           <Controls showInteractive={false} />
         </ReactFlow>
-        {!nodes.length && <div className="empty">Ask the AI on the left, or add a card, a title or a box from the top.<br />Drag from a dot on a shape’s side to another shape to draw an arrow; double-click to edit words.</div>}
+        {!nodes.length && <div className="empty">Ask the AI on the left, or add a card, a title or a box from the top.<br />Drag from a dot on a shape’s side to another shape to draw an arrow; double-click to edit words.<br />Drag on the canvas to select · Space + drag to move around</div>}
       </main>
       <Inspector />
     </div>
