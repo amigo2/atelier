@@ -19,7 +19,11 @@ Diagrams go to `data/` (git-ignored); `ATELIER_DATA=/somewhere` for another fold
 - **Resize** from the corners; **move** by dragging. **Select several** by dragging on the canvas, Shift-click, or ⌘A; Delete removes them all.
 - **Move around** with Space + drag (or the middle mouse button, or the trackpad); pinch or ⌘-scroll to zoom.
 - ⌘Z undo · ⇧⌘Z redo · ⌘D duplicate · Delete removes (a shape's arrows go with it).
-- **Export PNG**: cropped to the drawing, 2x, on white. Saved as you go.
+- **Grid:** soft lines every 16 (stronger every 80); shapes snap to 8.
+- **▭ Frame:** shows the export area on the canvas (16:9 1600×900, 4:3, square, A4 landscape or portrait) to
+  draw into; saved with the diagram, and the AI keeps new things inside it.
+- **Export PNG**: with the frame on, exactly the frame (2x); with it off, cropped to the drawing. On white.
+  Saved as you go.
 
 ## The AI chat
 On the left. Describe a diagram or a change ("draw a RAG pipeline…", "make these teal", "group these as AWS"); select

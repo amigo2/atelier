@@ -1,13 +1,13 @@
 // Atelier: a diagram editor. The canvas in the middle, what you can add on the left, the selected thing's
 // colour and words on the right, the diagram's name, undo and export along the top. Saved as you go.
-import { Background, ConnectionMode, Controls, ReactFlow, ReactFlowProvider, SelectionMode, useReactFlow, type FinalConnectionState } from '@xyflow/react'
+import { Background, BackgroundVariant, ConnectionMode, Controls, ReactFlow, ReactFlowProvider, SelectionMode, ViewportPortal, useReactFlow, type FinalConnectionState } from '@xyflow/react'
 import { useEffect, useRef, useState } from 'react'
 import { api, type Listing } from './api'
 import { NODE_TYPES } from './components/Shapes'
 import { Inspector } from './components/Inspector'
 import { Chat } from './components/Chat'
 import { exportPng } from './exportPng'
-import { fromDoc, newId, toDoc, type ElData, type Kind } from './model'
+import { PRESETS, fromDoc, newId, toDoc, type ElData, type Kind } from './model'
 import { useApp } from './store'
 
 const LAST = 'atelier.last'
@@ -23,12 +23,19 @@ const TOOLS: { label: string; kind: Kind; data?: Partial<ElData>; hint: string }
 ]
 
 function Editor() {
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, checkpoint, name, saved, past, future } = useApp()
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, checkpoint, name, saved, past, future, frame } = useApp()
   const rf = useReactFlow()
   const [list, setList] = useState<Listing[] | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atelier.details') !== 'shut')
   const toggleInsp = () => setInspOpen((o) => { localStorage.setItem('atelier.details', o ? 'shut' : 'open'); return !o })
+
+  // show the whole drawing, or the whole export frame when it's on
+  const fit = () => setTimeout(() => {
+    const f = useApp.getState().frame
+    if (f) rf.fitBounds({ x: f.x, y: f.y - 30, width: f.w, height: f.h + 30 }, { padding: 0.06 })
+    else rf.fitView({ padding: 0.2 })
+  }, 50)
 
   // add one where the view's centre is
   const add = (kind: Kind, data?: Partial<ElData>) => {
@@ -42,21 +49,21 @@ function Editor() {
   // open the last diagram, or start one
   useEffect(() => {
     const id = localStorage.getItem(LAST)
-    if (id) api.get(id).then((d) => { useApp.getState().load(d.id, d.name, fromDoc(d)); setTimeout(() => rf.fitView({ padding: 0.2 }), 50) }).catch(() => localStorage.removeItem(LAST))
+    if (id) api.get(id).then((d) => { useApp.getState().load(d.id, d.name, fromDoc(d), d.frame ?? null); fit() }).catch(() => localStorage.removeItem(LAST))
   }, [rf])
 
   // save as you go, a moment after the last change
   useEffect(() => {
     if (saved) return
     const t = setTimeout(async () => {
-      const s = useApp.getState(), at = { nodes: s.nodes, edges: s.edges, name: s.name }
-      await api.save(toDoc(s.id, s.name, s.nodes, s.edges))
+      const s = useApp.getState(), at = { nodes: s.nodes, edges: s.edges, name: s.name, frame: s.frame }
+      await api.save(toDoc(s.id, s.name, s.nodes, s.edges, s.frame))
       localStorage.setItem(LAST, s.id)
       const now = useApp.getState()
-      if (now.nodes === at.nodes && now.edges === at.edges && now.name === at.name) now.markSaved()
+      if (now.nodes === at.nodes && now.edges === at.edges && now.name === at.name && now.frame === at.frame) now.markSaved()
     }, 600)
     return () => clearTimeout(t)
-  }, [saved, nodes, edges, name])
+  }, [saved, nodes, edges, name, frame])
 
   // keys: undo, redo, duplicate, and Escape to stop editing / deselect
   useEffect(() => {
@@ -88,7 +95,7 @@ function Editor() {
   }
 
   const fresh = () => { useApp.getState().load(newId('d'), 'Untitled', { nodes: [], edges: [] }); setList(null) }
-  const open = async (id: string) => { const d = await api.get(id); useApp.getState().load(d.id, d.name, fromDoc(d)); localStorage.setItem(LAST, d.id); setList(null); setTimeout(() => rf.fitView({ padding: 0.2 }), 50) }
+  const open = async (id: string) => { const d = await api.get(id); useApp.getState().load(d.id, d.name, fromDoc(d), d.frame ?? null); localStorage.setItem(LAST, d.id); setList(null); fit() }
 
   return (
     <div className={`app ${inspOpen ? '' : 'insp-shut'}`}>
@@ -113,7 +120,15 @@ function Editor() {
         </div>
         <button onClick={() => useApp.getState().undo()} disabled={!past.length} title="Undo (⌘Z)">↶</button>
         <button onClick={() => useApp.getState().redo()} disabled={!future.length} title="Redo (⇧⌘Z)">↷</button>
-        <button className="primary" onClick={() => exportPng(nodes, edges, name)} disabled={!nodes.length} title="Download the diagram as a PNG">Export PNG</button>
+        <span className="sep" />
+        <button className={`toggle ${frame ? 'on' : ''}`} onClick={() => { useApp.getState().setFrame(!frame); if (!frame) setTimeout(() => { const f = useApp.getState().frame; if (f) rf.fitBounds({ x: f.x, y: f.y - 30, width: f.w, height: f.h + 30 }, { padding: 0.08, duration: 300 }) }, 30) }}
+          title={frame ? 'Hide the export frame: export crops to the drawing' : 'Show the export frame: draw inside it, export exactly it'} aria-pressed={!!frame}>▭ Frame</button>
+        {frame && (
+          <select className="preset" value={frame.preset} onChange={(e) => useApp.getState().setFrame(true, e.target.value)} aria-label="Export size">
+            {PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        )}
+        <button className="primary" onClick={() => exportPng(nodes, edges, name, frame)} disabled={!nodes.length && !frame} title={frame ? `Download the frame as a ${frame.w} × ${frame.h} PNG` : 'Download the diagram as a PNG'}>Export PNG</button>
       </header>
       <Chat />
       <main className="canvas" ref={box}>
@@ -123,7 +138,15 @@ function Editor() {
           multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
           snapToGrid snapGrid={[8, 8]} defaultViewport={{ x: 0, y: 0, zoom: 1 }} minZoom={0.2} maxZoom={3} proOptions={{ hideAttribution: true }}
           onPaneClick={() => useApp.getState().setEditing(null)}>
-          <Background gap={16} size={1} color="#d9dde8" />
+          <Background id="minor" variant={BackgroundVariant.Lines} gap={16} lineWidth={0.5} color="#eceff5" />
+          <Background id="major" variant={BackgroundVariant.Lines} gap={80} lineWidth={0.75} color="#dfe3ec" />
+          {frame && (
+            <ViewportPortal>
+              <div className="xframe" style={{ transform: `translate(${frame.x}px, ${frame.y}px)`, width: frame.w, height: frame.h }}>
+                <span className="xframe-l">Export · {frame.w} × {frame.h}</span>
+              </div>
+            </ViewportPortal>
+          )}
           <Controls showInteractive={false} />
         </ReactFlow>
         {!nodes.length && <div className="empty">Ask the AI on the left, or add a card, a title or a box from the top.<br />Drag from a dot on a shape’s side to another shape to draw an arrow; double-click to edit words.<br />Drag on the canvas to select · Space + drag to move around</div>}

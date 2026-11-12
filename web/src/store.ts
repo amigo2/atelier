@@ -3,7 +3,7 @@
 // be one step (a drag, a resize, an edit, an add), never on selection.
 import { create } from 'zustand'
 import { addEdge, applyEdgeChanges, applyNodeChanges, type Connection, type Edge, type EdgeChange, type NodeChange } from '@xyflow/react'
-import { EDGE_DEFAULTS, NEW, newId, toNode, type El, type ElData, type Kind } from './model'
+import { EDGE_DEFAULTS, NEW, PRESETS, newId, toNode, type El, type ElData, type Frame, type Kind } from './model'
 
 type Snap = { nodes: El[]; edges: Edge[] }
 const LIMIT = 100
@@ -17,6 +17,7 @@ export interface State {
   past: Snap[]
   future: Snap[]
   editing: string | null // the element whose text is being edited in place
+  frame: Frame | null // the export frame, when it's on
   saved: boolean
   onNodesChange: (c: NodeChange<El>[]) => void
   onEdgesChange: (c: EdgeChange[]) => void
@@ -31,7 +32,8 @@ export interface State {
   undo: () => void
   redo: () => void
   setEditing: (id: string | null) => void
-  load: (id: string, name: string, s: Snap) => void
+  load: (id: string, name: string, s: Snap, frame?: Frame | null) => void
+  setFrame: (on: boolean, preset?: string) => void
   replace: (s: Snap) => void
   rename: (name: string) => void
   markSaved: () => void
@@ -47,6 +49,7 @@ export const useApp = create<State>((set, get) => ({
   past: [],
   future: [],
   editing: null,
+  frame: null,
   saved: true,
 
   onNodesChange: (changes) => {
@@ -135,7 +138,20 @@ export const useApp = create<State>((set, get) => ({
     const sel = new Set(get().nodes.filter((n) => n.selected).map((n) => n.id))
     set({ nodes: next.nodes.map((n) => (sel.has(n.id) ? { ...n, selected: true } : n)), edges: next.edges, editing: null, saved: false })
   },
-  load: (id, name, s) => set({ id, name, ...s, past: [], future: [], editing: null, saved: true }),
+  load: (id, name, s, frame = null) => set({ id, name, ...s, frame, past: [], future: [], editing: null, saved: true }),
+  // on: a frame of the preset's size, centred on the drawing (or at the origin on an empty canvas); a new preset
+  // keeps the frame's centre
+  setFrame: (on, preset) => set((s) => {
+    if (!on) return { frame: null, saved: false }
+    const p = PRESETS.find((x) => x.id === (preset ?? s.frame?.preset)) ?? PRESETS[0]
+    let cx: number, cy: number
+    if (s.frame) { cx = s.frame.x + s.frame.w / 2; cy = s.frame.y + s.frame.h / 2 }
+    else if (s.nodes.length) {
+      const xs = s.nodes.flatMap((n) => [n.position.x, n.position.x + (n.width ?? 0)]), ys = s.nodes.flatMap((n) => [n.position.y, n.position.y + (n.height ?? 0)])
+      cx = (Math.min(...xs) + Math.max(...xs)) / 2; cy = (Math.min(...ys) + Math.max(...ys)) / 2
+    } else { cx = p.w / 2; cy = p.h / 2 }
+    return { frame: { x: Math.round((cx - p.w / 2) / 8) * 8, y: Math.round((cy - p.h / 2) / 8) * 8, w: p.w, h: p.h, preset: p.id }, saved: false }
+  }),
   rename: (name) => set({ name, saved: false }),
   markSaved: () => set({ saved: true }),
 }))

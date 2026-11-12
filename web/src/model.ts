@@ -44,13 +44,23 @@ export const EDGE_DEFAULTS = { type: 'smoothstep', markerEnd: arrow(), style: { 
 
 export type DocElement = { id: string; kind: Kind; x: number; y: number; w: number; h: number } & ElData
 export type DocArrow = { id: string; from: string; to: string; fromSide?: string; toSide?: string; label?: string }
-export type Doc = { id: string; name: string; elements: DocElement[]; arrows: DocArrow[] }
+export type Frame = { x: number; y: number; w: number; h: number; preset: string }
+export type Doc = { id: string; name: string; elements: DocElement[]; arrows: DocArrow[]; frame?: Frame | null }
+
+// the export frame's sizes: what the PNG will be, drawn on the canvas to draw into
+export const PRESETS: { id: string; label: string; w: number; h: number }[] = [
+  { id: '16:9', label: '16:9 · 1600 × 900', w: 1600, h: 900 },
+  { id: '4:3', label: '4:3 · 1200 × 900', w: 1200, h: 900 },
+  { id: 'square', label: 'Square · 1080 × 1080', w: 1080, h: 1080 },
+  { id: 'a4-land', label: 'A4 landscape · 1600 × 1131', w: 1600, h: 1131 },
+  { id: 'a4-port', label: 'A4 portrait · 1131 × 1600', w: 1131, h: 1600 },
+]
 
 const num = (n: number | undefined, d: number) => Math.round(n ?? d)
 
-export function toDoc(id: string, name: string, nodes: El[], edges: Edge[]): Doc {
+export function toDoc(id: string, name: string, nodes: El[], edges: Edge[], frame: Frame | null = null): Doc {
   return {
-    id, name,
+    id, name, frame,
     elements: nodes.map((n) => ({
       id: n.id, kind: n.type as Kind, x: Math.round(n.position.x), y: Math.round(n.position.y),
       w: num(n.width ?? n.measured?.width, NEW[n.type as Kind].w), h: num(n.height ?? n.measured?.height, NEW[n.type as Kind].h), ...n.data,

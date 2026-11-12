@@ -52,3 +52,10 @@ def test_scripted_chat():
     assert r["doc"]["elements"][-1]["size"] == "title"
     r = assist.assist({"doc": r["doc"], "text": "delete Retrieve"})
     assert [e.get("title") for e in r["doc"]["elements"] if e["kind"] == "card"] == ["Question", "Embed"] and len(r["doc"]["arrows"]) == 1
+
+
+def test_frame_is_shown_and_new_things_start_inside_it():
+    cv = Canvas({"elements": [], "arrows": [], "frame": {"x": 400, "y": 200, "w": 1600, "h": 900, "preset": "16:9"}})
+    assert cv.summary()["frame"] == {"x": 400, "y": 200, "w": 1600, "h": 900}
+    r = cv.add_element(kind="text", size="title", text="Hello")
+    assert (r["x"], r["y"]) == (460, 250)

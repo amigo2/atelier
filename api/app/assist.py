@@ -104,6 +104,8 @@ How you work:
 (after + side) rather than guessing coordinates; use arrange to line up a row of steps.
 - When a request needs an element you just added, use the id add_element returned. Never invent ids.
 - "This", "it", "these" mean the selected elements, listed with the message.
+- If the diagram has a frame, it is the exported picture: keep everything inside it, with a margin of about 50, \
+and use its width (a row of steps spread across it, panels sized to fill it).
 - Change only what they asked for. Keep words short; no full sentences on cards.
 - Line up anything meant as a row or column (steps, panels, a legend of pills) with arrange, so the spacing is even.
 - Before you answer, after building or moving several things: call read_diagram and check every step of a flow is connected to the next and nothing overlaps; fix what isn't right.
@@ -143,6 +145,7 @@ class Canvas:
         words = lambda e: {k: e[k] for k in ("title", "sub", "emoji", "text", "size") if e.get(k)}
         return {"elements": [{"id": e["id"], "kind": e["kind"], "x": e["x"], "y": e["y"], "w": e["w"], "h": e["h"], "color": e.get("color"), **words(e)} for e in self.els],
                 "arrows": [{"id": a["id"], "from": a["from"], "to": a["to"], **({"label": a["label"]} if a.get("label") else {})} for a in self.doc["arrows"]],
+                **({"frame": {k: self.doc["frame"][k] for k in ("x", "y", "w", "h")}} if self.doc.get("frame") else {}),
                 **({"selected": selected} if selected is not None else {})}
 
     # --- sizes and places
@@ -174,8 +177,9 @@ class Canvas:
             if side == "below":
                 return o["x"], o["y"] + o["h"] + GAP
             return o["x"], o["y"] - h - GAP
+        f = self.doc.get("frame")
         if not self.els:
-            return 0, 0
+            return (f["x"] + 60, f["y"] + 50) if f else (0, 0)
         return min(e["x"] for e in self.els), max(e["y"] + e["h"] for e in self.els) + 40
 
     # --- the tools

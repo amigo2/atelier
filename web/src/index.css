@@ -115,3 +115,9 @@ textarea.edit { font: inherit; color: inherit; letter-spacing: inherit; text-tra
 .insp.shut { padding: 10px 0; display: flex; flex-direction: column; align-items: center; gap: 12px; overflow: hidden; }
 .insp.shut .fold { position: static; }
 .rail-label { writing-mode: vertical-rl; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+
+/* the export frame: what the PNG will be */
+.xframe { position: absolute; top: 0; left: 0; pointer-events: none; border: 1.5px dashed #7f9cf5; border-radius: 4px; background: transparent; box-shadow: 0 0 0 100000px rgba(26,34,51,.045); z-index: -1; }
+.xframe-l { position: absolute; top: -24px; left: 0; font-size: 12px; font-weight: 600; color: #5b7be0; white-space: nowrap; }
+button.toggle.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.preset { font: inherit; font-size: 12.5px; border: 1px solid var(--line); border-radius: 7px; padding: 5px 6px; background: #fff; color: var(--ink); }

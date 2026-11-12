@@ -36,7 +36,7 @@ export function Chat() {
     try {
       const s = useApp.getState()
       const before = s.nodes.length
-      const r = await api.assist({ doc: toDoc(s.id, s.name, s.nodes, s.edges), selected: s.nodes.filter((n) => n.selected).map((n) => n.id), text: t, chat })
+      const r = await api.assist({ doc: toDoc(s.id, s.name, s.nodes, s.edges, s.frame), selected: s.nodes.filter((n) => n.selected).map((n) => n.id), text: t, chat })
       const changed = r.steps.length > 0
       if (changed) {
         s.replace(fromDoc(r.doc))
