@@ -7,3 +7,4 @@ data/
 e2e/artifacts/
 *.tsbuildinfo
 .DS_Store
+exports/

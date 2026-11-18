@@ -14,7 +14,7 @@ translation to Anthropic's shape happens here, at the boundary. Rewriting the ca
 have touched 412 lines of working tool code to no benefit.
 
 The key stays outside the repo: ANTHROPIC_API_KEY in the environment, or a file holding it (default
-`~/.sentinel/anthropic.env`, `ATELIER_ANTHROPIC_ENV` for another), or a profile from `ant auth login`.
+`~/.atelier/anthropic.env`, `ATELIER_ANTHROPIC_ENV` for another), or a profile from `ant auth login`.
 `ATELIER_NO_MODEL=1` forces the scripted reader, which is how the tests run without a key.
 """
 import json
@@ -34,7 +34,7 @@ TIMEOUT = float(os.environ.get("ATELIER_MODEL_TIMEOUT", "40"))
 # what an interactive editor wants, but it is a measured decision, not a default to guess at.
 EFFORT = os.environ.get("ATELIER_MODEL_EFFORT", "").strip()
 
-KEY_FILE = Path(os.environ.get("ATELIER_ANTHROPIC_ENV", Path.home() / ".sentinel" / "anthropic.env")).expanduser()
+KEY_FILE = Path(os.environ.get("ATELIER_ANTHROPIC_ENV", Path.home() / ".atelier" / "anthropic.env")).expanduser()
 
 _client = None
 

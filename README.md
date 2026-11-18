@@ -45,7 +45,7 @@ shapes first to mean "this". Each AI message is one undo step (Undo in the chat,
 It has 8 tools: read_diagram, add_element, update_element, delete_elements, connect, arrange, group, clear
 (`api/app/assist.py`). Model: **Claude Sonnet 5.5 through Anthropic's own API** — not a reseller, so one
 account and the real model ids. The key lives outside the repo: `ANTHROPIC_API_KEY` in the environment, or
-`~/.sentinel/anthropic.env` (`ATELIER_ANTHROPIC_ENV` for another file), or a profile from `ant auth login`.
+`~/.atelier/anthropic.env` (`ATELIER_ANTHROPIC_ENV` for another file), or a profile from `ant auth login`.
 `ATELIER_MODEL` picks another model and `ATELIER_MODEL_EFFORT` sets the effort level (unset by default).
 Without a key a scripted reader handles plain requests ("draw a pipeline: A -> B -> C", "add a card X",
 "connect A to B", "make X amber", "delete X"). Tests never call the model: `ATELIER_NO_MODEL=1` forces the
