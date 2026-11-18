@@ -1,8 +1,65 @@
 // The right-hand panel: the selected element's colour, emoji, words and size; an arrow's label; or what to do.
+import { useMemo, useRef, useState } from 'react'
+import { api } from '../api'
+import { ICON_COUNT, findIcons, iconByName } from '../icons'
 import { COLORS, PALETTE, type TextSize } from '../model'
 import { useApp } from '../store'
 
 const SIZES: TextSize[] = ['title', 'heading', 'label', 'body']
+
+/** Search the bundled set by name and pick one. No network, one stroke weight, one licence. */
+function IconPicker({ value, onPick }: { value?: string; onPick: (name: string | undefined) => void }) {
+  const [q, setQ] = useState('')
+  const hits = useMemo(() => findIcons(q, 48), [q])
+  return (
+    <>
+      <label htmlFor="iconq">Icon <span className="faint">· {ICON_COUNT} to choose from</span></label>
+      <input id="iconq" value={q} placeholder="house, key, chart…" onChange={(e) => setQ(e.target.value)} />
+      <div className="icogrid">
+        {hits.map((n) => {
+          const I = iconByName(n)!
+          return (
+            <button key={n} className={`icopick ${value === n ? 'on' : ''}`} title={n} aria-label={n} onClick={() => onPick(n)}>
+              <I size={17} />
+            </button>
+          )
+        })}
+        {!hits.length && <span className="faint">Nothing called “{q}”.</span>}
+      </div>
+      {value && <div className="row"><button className="bad" onClick={() => onPick(undefined)}>No icon</button></div>}
+    </>
+  )
+}
+
+function ImageFields({ id, src, fit, alt }: { id: string; src?: string; fit?: 'cover' | 'contain'; alt?: string }) {
+  const file = useRef<HTMLInputElement>(null)
+  const s = useApp.getState()
+  const pick = async (f: File) => {
+    const { url } = await api.uploadImage(f)
+    s.checkpoint()
+    s.update(id, { src: url, alt: alt || f.name })
+  }
+  return (
+    <>
+      <label>Picture</label>
+      <div className="row">
+        <button onClick={() => file.current?.click()}>{src ? 'Replace…' : 'Choose…'}</button>
+        {src && <button className="bad" onClick={() => { s.checkpoint(); s.update(id, { src: undefined }) }}>Remove</button>}
+      </div>
+      <input ref={file} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) void pick(f); e.target.value = '' }} />
+      <label>Fit</label>
+      <div className="row">
+        {(['contain', 'cover'] as const).map((f) => (
+          <button key={f} className={(fit ?? 'contain') === f ? 'on' : ''} onClick={() => { s.checkpoint(); s.update(id, { fit: f }) }}
+            title={f === 'contain' ? 'The whole picture, inside the box' : 'Fill the box, cropping what does not fit'}>{f === 'contain' ? 'Whole' : 'Fill'}</button>
+        ))}
+      </div>
+      <label htmlFor="alt">Description</label>
+      <input id="alt" value={alt ?? ''} placeholder="what it shows" onFocus={s.checkpoint} onChange={(e) => s.update(id, { alt: e.target.value })} />
+    </>
+  )
+}
 
 function Details() {
   const nodes = useApp((s) => s.nodes)
@@ -36,8 +93,11 @@ function Details() {
               onClick={() => set({ color: c })} title={c} aria-label={c}><i style={{ background: PALETTE[c].fg }} /></button>
           ))}
         </div>
+        {n.type === 'image' && <ImageFields id={n.id} src={d.src} fit={d.fit} alt={d.alt} />}
+        {n.type === 'icon' && <IconPicker value={d.icon} onPick={(icon) => set({ icon })} />}
+        {n.type === 'card' && <IconPicker value={d.icon} onPick={(icon) => set({ icon })} />}
         {n.type === 'card' && (<>
-          <label htmlFor="emoji">Emoji</label>
+          <label htmlFor="emoji">Emoji <span className="faint">· wins over the icon</span></label>
           <input id="emoji" value={d.emoji ?? ''} placeholder="e.g. 🔍" onFocus={s.checkpoint} onChange={(e) => s.update(n.id, { emoji: e.target.value })} />
           <label htmlFor="title">Title</label>
           <input id="title" value={d.title ?? ''} onFocus={s.checkpoint} onChange={(e) => s.update(n.id, { title: e.target.value })} />

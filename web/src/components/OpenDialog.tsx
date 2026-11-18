@@ -12,6 +12,7 @@ export function OpenDialog({ close, open }: { close: () => void; open: (id: stri
   const [deleting, setDeleting] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const file = useRef<HTMLInputElement>(null)
+  const mdFile = useRef<HTMLInputElement>(null)
   const current = useApp((s) => s.id)
 
   const reload = () => api.list().then(setList).catch((e) => setErr(String(e.message ?? e)))
@@ -38,6 +39,19 @@ export function OpenDialog({ close, open }: { close: () => void; open: (id: stri
     setDeleting(null)
     if (d.id === current) { useApp.getState().load(newId('d'), uniqueName('Untitled', list ?? []), { nodes: [], edges: [] }); localStorage.removeItem('atelier.last') }
   })
+  // Imported, then saved and opened — so an import that came out wrong is thrown away by not keeping it,
+  // and never lands on top of something already there.
+  const importMd = (f: File) => act(async () => {
+    const text = await f.text()
+    const name = uniqueName(f.name.replace(/\.(md|markdown|txt)$/i, '') || 'Imported', list ?? [])
+    const doc = await api.importMarkdown({ markdown: text, name, id: newId('d') })
+    await api.save(doc)
+    open(doc.id)
+    if (doc.overflow?.length) {
+      setErr(`Imported. ${doc.overflow.length} page${doc.overflow.length > 1 ? 's run' : ' runs'} past the bottom and want tidying: ${doc.overflow.join(', ')}.`)
+    }
+  })
+
   const download = async (d: Listing) => {
     const doc = await api.get(d.id)
     const a = document.createElement('a')
@@ -63,6 +77,8 @@ export function OpenDialog({ close, open }: { close: () => void; open: (id: stri
           <input className="search" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
           <button onClick={() => file.current?.click()} title="Open a .atelier.json file from anywhere">Import file…</button>
           <input ref={file} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); e.target.value = '' }} />
+          <button onClick={() => mdFile.current?.click()} title="A markdown deck as pages: one page per --- separator, with its tables and lists">Import markdown…</button>
+          <input ref={mdFile} type="file" accept=".md,.markdown,text/markdown,text/plain" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importMd(f); e.target.value = '' }} />
           <button className="x" onClick={close} aria-label="Close">✕</button>
         </div>
         {err && <p className="err">{err}</p>}
@@ -78,7 +94,7 @@ export function OpenDialog({ close, open }: { close: () => void; open: (id: stri
               ) : (
                 <button className="dlg-name" onClick={() => open(d.id)} title="Open">
                   <b>{d.name}</b>{d.id === current && <em>open now</em>}
-                  <span>{d.elements} shape{d.elements === 1 ? '' : 's'}{d.framed ? ' · framed' : ''} · {new Date(d.updated * 1000).toLocaleString()}</span>
+                  <span>{d.elements} shape{d.elements === 1 ? '' : 's'}{d.pages ? ` · ${d.pages} page${d.pages === 1 ? '' : 's'}` : ''} · {new Date(d.updated * 1000).toLocaleString()}</span>
                 </button>
               )}
               {deleting === d.id ? (

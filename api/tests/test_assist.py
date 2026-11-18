@@ -1,4 +1,4 @@
-"""The AI's tools on a diagram, and the scripted chat (no model is called: the key file is pointed nowhere)."""
+"""The AI's tools on a diagram, and the scripted chat (no model is called: ATELIER_NO_MODEL forces it off)."""
 import pytest
 
 from app import assist, llm
@@ -7,8 +7,10 @@ from app.assist import Canvas
 
 @pytest.fixture(autouse=True)
 def no_model(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.setenv("ATELIER_OPENROUTER_ENV", "/nonexistent")
+    # An explicit switch rather than hiding a credential: on Bedrock the SDK reads the whole AWS chain
+    # (~/.aws, AWS_* vars, instance roles), and a test that passes only on a laptop without a profile is
+    # a test that fails on anyone else's.
+    monkeypatch.setenv("ATELIER_NO_MODEL", "1")
     assert not llm.live()
 
 

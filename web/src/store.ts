@@ -3,7 +3,7 @@
 // be one step (a drag, a resize, an edit, an add), never on selection.
 import { create } from 'zustand'
 import { addEdge, applyEdgeChanges, applyNodeChanges, type Connection, type Edge, type EdgeChange, type NodeChange } from '@xyflow/react'
-import { EDGE_DEFAULTS, NEW, PRESETS, newId, toNode, type El, type ElData, type Frame, type Kind } from './model'
+import { EDGE_DEFAULTS, NEW, PRESETS, nextPageAt, newId, toNode, type El, type ElData, type Kind, type Page } from './model'
 
 type Snap = { nodes: El[]; edges: Edge[] }
 const LIMIT = 100
@@ -17,7 +17,7 @@ export interface State {
   past: Snap[]
   future: Snap[]
   editing: string | null // the element whose text is being edited in place
-  frame: Frame | null // the export frame, when it's on
+  pages: Page[] // the artboards: one per page of the PDF, in reading order
   saved: boolean
   onNodesChange: (c: NodeChange<El>[]) => void
   onEdgesChange: (c: EdgeChange[]) => void
@@ -32,8 +32,12 @@ export interface State {
   undo: () => void
   redo: () => void
   setEditing: (id: string | null) => void
-  load: (id: string, name: string, s: Snap, frame?: Frame | null) => void
+  load: (id: string, name: string, s: Snap, pages?: Page[]) => void
   setFrame: (on: boolean, preset?: string) => void
+  addPage: (preset?: string) => string
+  removePage: (id: string) => void
+  setPagePreset: (id: string, preset: string) => void
+  renamePage: (id: string, name: string) => void
   replace: (s: Snap) => void
   rename: (name: string) => void
   markSaved: () => void
@@ -49,7 +53,7 @@ export const useApp = create<State>((set, get) => ({
   past: [],
   future: [],
   editing: null,
-  frame: null,
+  pages: [],
   saved: true,
 
   onNodesChange: (changes) => {
@@ -138,20 +142,60 @@ export const useApp = create<State>((set, get) => ({
     const sel = new Set(get().nodes.filter((n) => n.selected).map((n) => n.id))
     set({ nodes: next.nodes.map((n) => (sel.has(n.id) ? { ...n, selected: true } : n)), edges: next.edges, editing: null, saved: false })
   },
-  load: (id, name, s, frame = null) => set({ id, name, ...s, frame, past: [], future: [], editing: null, saved: true }),
-  // on: a frame of the preset's size, centred on the drawing (or at the origin on an empty canvas); a new preset
-  // keeps the frame's centre
+  load: (id, name, s, pages = []) => set({ id, name, ...s, pages, past: [], future: [], editing: null, saved: true }),
+  // The ▭ toggle: on gives the document its first page, sized to the preset and centred on whatever is
+  // drawn; off removes every page, and the export goes back to cropping to the drawing.
   setFrame: (on, preset) => set((s) => {
-    if (!on) return { frame: null, saved: false }
-    const p = PRESETS.find((x) => x.id === (preset ?? s.frame?.preset)) ?? PRESETS[0]
+    if (!on) return { pages: [], saved: false }
+    const p = PRESETS.find((x) => x.id === (preset ?? s.pages[0]?.preset)) ?? PRESETS[0]
+    if (s.pages.length) {
+      // Changing the preset keeps each page's centre, so the deck does not jump around.
+      return {
+        pages: s.pages.map((pg) => ({
+          ...pg, preset: p.id, w: p.w, h: p.h,
+          x: Math.round((pg.x + pg.w / 2 - p.w / 2) / 8) * 8,
+          y: Math.round((pg.y + pg.h / 2 - p.h / 2) / 8) * 8,
+        })),
+        saved: false,
+      }
+    }
     let cx: number, cy: number
-    if (s.frame) { cx = s.frame.x + s.frame.w / 2; cy = s.frame.y + s.frame.h / 2 }
-    else if (s.nodes.length) {
+    if (s.nodes.length) {
       const xs = s.nodes.flatMap((n) => [n.position.x, n.position.x + (n.width ?? 0)]), ys = s.nodes.flatMap((n) => [n.position.y, n.position.y + (n.height ?? 0)])
       cx = (Math.min(...xs) + Math.max(...xs)) / 2; cy = (Math.min(...ys) + Math.max(...ys)) / 2
     } else { cx = p.w / 2; cy = p.h / 2 }
-    return { frame: { x: Math.round((cx - p.w / 2) / 8) * 8, y: Math.round((cy - p.h / 2) / 8) * 8, w: p.w, h: p.h, preset: p.id }, saved: false }
+    return { pages: [{ id: newId('p'), name: 'Page 1', x: Math.round((cx - p.w / 2) / 8) * 8, y: Math.round((cy - p.h / 2) / 8) * 8, w: p.w, h: p.h, preset: p.id }], saved: false }
   }),
+
+  addPage: (preset) => {
+    get().checkpoint()
+    const s = get()
+    const p = PRESETS.find((x) => x.id === (preset ?? s.pages[0]?.preset)) ?? PRESETS[0]
+    const at = nextPageAt(s.pages)
+    const id = newId('p')
+    set({ pages: [...s.pages, { id, name: `Page ${s.pages.length + 1}`, ...at, w: p.w, h: p.h, preset: p.id }], saved: false })
+    return id
+  },
+  // Only the page goes: what was drawn on it stays on the canvas as scratch, because deleting a page and
+  // silently deleting an afternoon's work are not the same thing and one of them is unforgivable.
+  removePage: (id) => {
+    get().checkpoint()
+    set((s) => ({ pages: s.pages.filter((p) => p.id !== id), saved: false }))
+  },
+  setPagePreset: (id, preset) => set((s) => {
+    const p = PRESETS.find((x) => x.id === preset)
+    if (!p) return {}
+    return {
+      pages: s.pages.map((pg) => (pg.id === id ? {
+        ...pg, preset: p.id, w: p.w, h: p.h,
+        x: Math.round((pg.x + pg.w / 2 - p.w / 2) / 8) * 8,
+        y: Math.round((pg.y + pg.h / 2 - p.h / 2) / 8) * 8,
+      } : pg)),
+      saved: false,
+    }
+  }),
+  renamePage: (id, name) => set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, name } : p)), saved: false })),
+
   rename: (name) => set({ name, saved: false }),
   markSaved: () => set({ saved: true }),
 }))

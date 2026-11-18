@@ -3,3 +3,8 @@ uvicorn>=0.32
 pytest>=8
 httpx>=0.27
 pytest-playwright>=0.6
+# Claude through Anthropic's own API. No Bedrock extra: this is a local tool, not the
+# Manahata backend, so there is no AWS in the picture.
+anthropic>=2.4
+# UploadFile needs it; FastAPI only says so at request time.
+python-multipart>=0.0.9

@@ -27,7 +27,7 @@ def server():
     port, data = _free_port(), tempfile.mkdtemp(prefix="atelier-e2e-")
     env = {"ATELIER_DATA": data, "PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "")}
     if os.environ.get("ATELIER_LIVE_MODEL") != "1":       # scripted chat: tests never call the model
-        env["ATELIER_OPENROUTER_ENV"] = "/nonexistent"
+        env["ATELIER_NO_MODEL"] = "1"
     proc = subprocess.Popen([str(API / ".venv/bin/uvicorn"), "app.main:app", "--port", str(port)], cwd=API,
                             env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     base = f"http://127.0.0.1:{port}"
