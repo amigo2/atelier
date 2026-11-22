@@ -25,13 +25,13 @@ def test_export_frame(page, base_url, data):
     expect(page.locator(".xframe")).to_be_visible()
     expect(page.locator(".xframe-l")).to_have_text("Export · 1600 × 900")
     with page.expect_download() as dl:
-        page.get_by_role("button", name="Export PNG").click()
+        page.get_by_role("button", name="PNG", exact=True).click()
     assert png_size(dl.value.path()) == (3200, 1800)                             # exactly the frame, at 2x
 
     page.locator("select.preset").select_option("square")
     expect(page.locator(".xframe-l")).to_have_text("Export · 1080 × 1080")
     with page.expect_download() as dl:
-        page.get_by_role("button", name="Export PNG").click()
+        page.get_by_role("button", name="PNG", exact=True).click()
     assert png_size(dl.value.path()) == (2160, 2160)
 
     page.locator(".name").fill("Framed")
@@ -44,5 +44,8 @@ def test_export_frame(page, base_url, data):
     frame_btn.click()                                                            # off: back to cropping to the drawing
     expect(page.locator(".xframe")).to_have_count(0)
     with page.expect_download() as dl:
-        page.get_by_role("button", name="Export PNG").click()
-    assert png_size(dl.value.path()) == ((180 + 80) * 2, (110 + 80) * 2)
+        page.get_by_role("button", name="PNG", exact=True).click()
+    # a new card is the size of its words, so read its size rather than assume one
+    card = page.locator(".react-flow__node-card").first
+    w, h = card.evaluate("n => [n.offsetWidth, n.offsetHeight]")
+    assert png_size(dl.value.path()) == ((w + 80) * 2, (h + 80) * 2)

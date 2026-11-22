@@ -63,7 +63,7 @@ def test_save_and_open(page, base_url, data, tmp_path):
     expect(row_of(dlg, "Pipeline v1 copy")).to_have_count(0)
 
     # import the downloaded file: a new diagram, a unique name, opened
-    dlg.locator("input[type=file]").set_input_files(str(saved))
+    dlg.locator("input[type=file][accept^=\".json\"]").set_input_files(str(saved))
     expect(page.get_by_role("dialog")).to_have_count(0)
     expect(page.locator(".name")).to_have_value("Pipeline v1 2")
     expect(page.locator(".react-flow__node-card")).to_have_count(1)

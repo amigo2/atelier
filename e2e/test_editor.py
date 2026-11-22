@@ -85,7 +85,7 @@ def test_draw_by_hand(page, base_url, data, errors):
 
     # export: a PNG download
     with page.expect_download() as dl:
-        page.get_by_role("button", name="Export PNG").click()
+        page.get_by_role("button", name="PNG", exact=True).click()
     assert dl.value.suggested_filename == "RAG-pipeline.png"
     head = open(dl.value.path(), "rb").read(8)
     assert head == b"\x89PNG\r\n\x1a\n"

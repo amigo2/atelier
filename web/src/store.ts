@@ -3,9 +3,41 @@
 // be one step (a drag, a resize, an edit, an add), never on selection.
 import { create } from 'zustand'
 import { addEdge, applyEdgeChanges, applyNodeChanges, type Connection, type Edge, type EdgeChange, type NodeChange } from '@xyflow/react'
-import { EDGE_DEFAULTS, NEW, PRESETS, nextPageAt, newId, toNode, type El, type ElData, type Kind, type Page } from './model'
+import { EDGE_DEFAULTS, NEW, POINT, PRESETS, edgeLook, lockProps, nextPageAt, newId, toNode, type El, type ElData, type Kind, type Look, type Page } from './model'
 
 type Snap = { nodes: El[]; edges: Edge[] }
+
+/** One end of a line: on a side of an element, or free at a spot on the canvas (flow coordinates). */
+export type End = { node: string; side: string } | { x: number; y: number }
+
+const pointAt = (x: number, y: number): El => toNode(newId('pt'), 'point', Math.round(x - POINT / 2), Math.round(y - POINT / 2), POINT, POINT, { color: 'ink' })
+
+// ⌥-click picks one member of a group on its own. The click's modifier is read when the pointer goes down,
+// before React Flow turns it into a selection change.
+let solo = false
+if (typeof window !== 'undefined') window.addEventListener('pointerdown', (e) => { solo = e.altKey }, true)
+
+/** Selecting one member of a group selects all of it; deselecting one deselects all of it (unless ⌥ is held). */
+function withGroups(changes: NodeChange<El>[], nodes: El[]): El[] {
+  if (solo) return nodes
+  const groupOf = new Map(nodes.filter((n) => n.data.group).map((n) => [n.id, n.data.group!]))
+  const on = new Set<string>(), off = new Set<string>()
+  for (const c of changes) if (c.type === 'select' && groupOf.has(c.id)) (c.selected ? on : off).add(groupOf.get(c.id)!)
+  if (!on.size && !off.size) return nodes
+  return nodes.map((n) => {
+    const g = n.data.group
+    if (!g) return n
+    if (on.has(g) && !n.selected) return { ...n, selected: true }
+    if (off.has(g) && !on.has(g) && n.selected) return { ...n, selected: false }
+    return n
+  })
+}
+
+/** A free end belongs to its line: when no line uses it any more, it goes. */
+function prune(nodes: El[], edges: Edge[]): El[] {
+  const used = new Set(edges.flatMap((e) => [e.source, e.target]))
+  return nodes.some((n) => n.type === 'point' && !used.has(n.id)) ? nodes.filter((n) => n.type !== 'point' || used.has(n.id)) : nodes
+}
 const LIMIT = 100
 let pending = false
 
@@ -26,8 +58,14 @@ export interface State {
   add: (kind: Kind, at: { x: number; y: number }, data?: Partial<ElData>) => string
   update: (id: string, patch: Partial<ElData>) => void
   updateEdge: (id: string, label: string) => void
+  updateEdgeLook: (id: string, patch: Look) => void
+  addLine: (from: End, to: End, look: Look) => string
+  moveEnd: (edgeId: string, end: 'source' | 'target', to: End, step?: boolean) => void
+  liftLine: (edgeId: string, from: { x: number; y: number }, to: { x: number; y: number }) => [string, string] | null
   remove: (ids: string[]) => void
   duplicate: () => void
+  group: () => void
+  ungroup: () => void
   toFront: (id: string, front: boolean) => void
   undo: () => void
   redo: () => void
@@ -60,16 +98,16 @@ export const useApp = create<State>((set, get) => ({
     // removing is a step of its own (Delete/Backspace on the canvas); moves and resizes are checkpointed when they start
     if (changes.some((c) => c.type === 'remove')) get().checkpoint()
     const changed = changes.some((c) => c.type !== 'select')
-    set((s) => ({ nodes: applyNodeChanges(changes, s.nodes), ...(changed ? { saved: false } : {}) }))
+    set((s) => ({ nodes: withGroups(changes, applyNodeChanges(changes, s.nodes)), ...(changed ? { saved: false } : {}) }))
     if (changes.some((c) => c.type === 'remove')) {
       const gone = new Set(changes.filter((c) => c.type === 'remove').map((c) => c.id))
-      set((s) => ({ edges: s.edges.filter((e) => !gone.has(e.source) && !gone.has(e.target)) }))
+      set((s) => { const edges = s.edges.filter((e) => !gone.has(e.source) && !gone.has(e.target)); return { edges, nodes: prune(s.nodes, edges) } })
     }
   },
   onEdgesChange: (changes) => {
     if (changes.some((c) => c.type === 'remove')) get().checkpoint()
     const changed = changes.some((c) => c.type !== 'select')
-    set((s) => ({ edges: applyEdgeChanges(changes, s.edges), ...(changed ? { saved: false } : {}) }))
+    set((s) => { const edges = applyEdgeChanges(changes, s.edges); return { edges, nodes: prune(s.nodes, edges), ...(changed ? { saved: false } : {}) } })
   },
   onConnect: (c) => {
     if (!c.source || !c.target || c.source === c.target) return
@@ -94,9 +132,60 @@ export const useApp = create<State>((set, get) => ({
     set((s) => ({ nodes: [...s.nodes.map((x) => ({ ...x, selected: false })), { ...n, selected: true }], saved: false }))
     return id
   },
-  update: (id, patch) => set((s) => ({ nodes: s.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)), saved: false })),
+  update: (id, patch) => set((s) => ({ nodes: s.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch }, ...('locked' in patch ? lockProps(patch.locked) : {}) } : n)), saved: false })),
+  updateEdgeLook: (id, patch) => {
+    get().checkpoint()
+    set((s) => ({ edges: s.edges.map((e) => (e.id === id ? { ...e, ...edgeLook({ ...(e.data as Look), ...patch }) } : e)), saved: false }))
+  },
+  addLine: (from, to, look) => {
+    get().checkpoint()
+    const pts: El[] = []
+    const ref = (e: End) => {
+      if ('node' in e) return { id: e.node, handle: e.side }
+      const p = pointAt(e.x, e.y); pts.push(p); return { id: p.id, handle: 'c' }
+    }
+    const a = ref(from), b = ref(to), id = newId('a')
+    const edge: Edge = { id, source: a.id, sourceHandle: a.handle, target: b.id, targetHandle: b.handle, ...edgeLook(look), selected: true }
+    set((s) => ({
+      nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...pts],
+      edges: [...s.edges.map((e) => ({ ...e, selected: false })), edge], saved: false,
+    }))
+    return id
+  },
+  moveEnd: (edgeId, end, to, step = true) => {
+    if (step) get().checkpoint()
+    set((s) => {
+      const e = s.edges.find((x) => x.id === edgeId)
+      if (!e) return {}
+      let nodes = s.nodes, at = { id: '', handle: 'c' }
+      if ('node' in to) at = { id: to.node, handle: to.side }
+      else { const p = pointAt(to.x, to.y); nodes = [...nodes, p]; at = { id: p.id, handle: 'c' } }
+      const moved = end === 'source' ? { ...e, source: at.id, sourceHandle: at.handle } : { ...e, target: at.id, targetHandle: at.handle }
+      if (moved.source === moved.target) return {}
+      const edges = s.edges.map((x) => (x.id === edgeId ? moved : x))
+      return { edges, nodes: prune(nodes, edges), saved: false }
+    })
+  },
+  // Picking a whole line up to move it: both ends become free points where they are now (an end on a shape
+  // comes loose), so dragging the two points moves the line. The caller has already made this one undo step.
+  liftLine: (edgeId, from, to) => {
+    const s = get(), e = s.edges.find((x) => x.id === edgeId)
+    if (!e) return null
+    const nodes = [...s.nodes]
+    const free = (id: string, at: { x: number; y: number }) => {
+      if (nodes.find((n) => n.id === id)?.type === 'point') return id
+      const p = pointAt(at.x, at.y); nodes.push(p); return p.id
+    }
+    const a = free(e.source, from), b = free(e.target, to)
+    const edges = s.edges.map((x) => (x.id === edgeId ? { ...x, source: a, sourceHandle: 'c', target: b, targetHandle: 'c', selected: true } : { ...x, selected: false }))
+    set({ nodes: prune(nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), edges), edges, saved: false })
+    return [a, b]
+  },
   updateEdge: (id, label) => set((s) => ({ edges: s.edges.map((e) => (e.id === id ? { ...e, label: label || undefined } : e)), saved: false })),
   remove: (ids) => {
+    // a locked element is not deleted, however it was asked for: by key, by button, or among several
+    const locked = new Set(get().nodes.filter((n) => n.data.locked).map((n) => n.id))
+    ids = ids.filter((i) => !locked.has(i))
     if (!ids.length) return
     get().checkpoint()
     const gone = new Set(ids)
@@ -105,13 +194,37 @@ export const useApp = create<State>((set, get) => ({
       edges: s.edges.filter((e) => !gone.has(e.id) && !gone.has(e.source) && !gone.has(e.target)),
       saved: false,
     }))
+    set((s) => ({ nodes: prune(s.nodes, s.edges) }))
   },
   duplicate: () => {
-    const sel = get().nodes.filter((n) => n.selected)
+    const sel = get().nodes.filter((n) => n.selected && n.type !== 'point')   // a line's end is not copied without its line
     if (!sel.length) return
     get().checkpoint()
-    const copies = sel.map((n) => ({ ...n, id: newId(n.type!), position: { x: n.position.x + 24, y: n.position.y + 24 }, selected: true, data: { ...n.data } }))
+    // a copied group is a new group: the copy and the original move separately
+    const regroup = new Map<string, string>()
+    const g = (id?: string) => { if (!id) return undefined; if (!regroup.has(id)) regroup.set(id, newId('g')); return regroup.get(id) }
+    const copies = sel.map((n) => ({ ...n, id: newId(n.type!), position: { x: n.position.x + 24, y: n.position.y + 24 }, selected: true,
+      data: { ...n.data, ...(n.data.group ? { group: g(n.data.group) } : {}) } }))
     set((s) => ({ nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...copies], saved: false }))
+  },
+  group: () => {
+    const sel = get().nodes.filter((n) => n.selected && n.type !== 'point')
+    if (sel.length < 2) return
+    get().checkpoint()
+    // groups do not nest: grouping members of other groups folds them all into the new one
+    const ids = new Set(sel.map((n) => n.id)), id = newId('g')
+    set((s) => ({ nodes: s.nodes.map((n) => (ids.has(n.id) ? { ...n, data: { ...n.data, group: id } } : n)), saved: false }))
+  },
+  ungroup: () => {
+    const sel = get().nodes.filter((n) => n.selected && n.data.group)
+    if (!sel.length) return
+    get().checkpoint()
+    const gone = new Set(sel.map((n) => n.data.group))
+    set((s) => ({ nodes: s.nodes.map((n) => {
+      if (!n.data.group || !gone.has(n.data.group)) return n
+      const { group: _, ...data } = n.data
+      return { ...n, data }
+    }), saved: false }))
   },
   toFront: (id, front) => {
     get().checkpoint()

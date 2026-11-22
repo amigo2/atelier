@@ -16,8 +16,15 @@ export const PALETTE = {
 export type Color = keyof typeof PALETTE
 export const COLORS = Object.keys(PALETTE) as Color[]
 
-export type Kind = 'card' | 'text' | 'box' | 'pill' | 'list' | 'table' | 'image' | 'bars' | 'icon'
+// `point` is not something you add: it is the free end of a line, an invisible element where the end sits, so
+// every line is still an edge between two elements and follows whatever it is attached to.
+export type Kind = 'card' | 'text' | 'box' | 'pill' | 'list' | 'table' | 'image' | 'bars' | 'icon' | 'point'
+/** The free end of a line: a point this big, its centre where the end is. */
+export const POINT = 10
+
 export type TextSize = 'title' | 'heading' | 'label' | 'body'
+export type Align = 'left' | 'center' | 'right'
+export const ALIGNS: Align[] = ['left', 'center', 'right']
 
 export type ElData = {
   color: Color
@@ -26,6 +33,9 @@ export type ElData = {
   sub?: string // card
   text?: string // text, pill
   size?: TextSize // text, list
+  align?: Align // card, text: where the words sit; left when absent
+  locked?: boolean // any kind: can be selected, but not moved, resized, edited or deleted
+  group?: string // elements with the same group id are selected, moved, duplicated and deleted together
   items?: string[] // list: one line each
   rows?: string[][] // table: rows of cells, the first one the header unless head is false
   head?: boolean // table
@@ -55,15 +65,53 @@ export const NEW: Record<Kind, { w: number; h: number; data: ElData }> = {
   image: { w: 420, h: 280, data: { color: 'grey', fit: 'contain' } },
   icon: { w: 64, h: 64, data: { color: 'blue', icon: 'sparkles' } },
   bars: { w: 460, h: 260, data: { color: 'blue', bars: [{ label: '2027', value: 458 }, { label: '2028', value: 1260 }, { label: '2029', value: 2700 }] } },
+  point: { w: POINT, h: POINT, data: { color: 'ink' } },
 }
 
 export const arrow = (color = '#8a94a8') => ({ type: MarkerType.ArrowClosed, color, width: 18, height: 18 })
-export const EDGE_DEFAULTS = { type: 'smoothstep', markerEnd: arrow(), style: { stroke: '#8a94a8', strokeWidth: 1.5 } } as const
+
+// --- how a line looks
+
+export type LineShape = 'straight' | 'curved' | 'elbow'
+export type LineEnds = 'none' | 'end' | 'both'
+export const LINE_SHAPES: LineShape[] = ['straight', 'curved', 'elbow']
+export const LINE_ENDS: LineEnds[] = ['none', 'end', 'both']
+/** What a line looks like. Every field is optional: an arrow saved before these existed is elbowed, grey, one head. */
+export type Look = { shape?: LineShape; ends?: LineEnds; dash?: boolean; color?: Color }
+const EDGE_TYPE: Record<LineShape, string> = { straight: 'straight', curved: 'default', elbow: 'smoothstep' }
+
+/**
+ * A look, as React Flow wants it. Lines sit above shapes (zIndex 1): a line drawn under a card disappears behind
+ * it, and the line is the point of an arrow.
+ */
+export function edgeLook(l: Look = {}) {
+  const stroke = l.color ? PALETTE[l.color].fg : '#8a94a8'
+  const ends = l.ends ?? 'end'
+  return {
+    type: EDGE_TYPE[l.shape ?? 'elbow'], zIndex: 1, data: { ...l },
+    markerEnd: ends === 'none' ? undefined : arrow(stroke),
+    markerStart: ends === 'both' ? arrow(stroke) : undefined,
+    style: { stroke, strokeWidth: 1.5, ...(l.dash ? { strokeDasharray: '6 5' } : {}) },
+    // a label is a small white tag on the line, so it reads over the grid and over anything the line crosses
+    labelStyle: { fontSize: 12, fontWeight: 600, fill: l.color ? PALETTE[l.color].fg : '#616c81' },
+    labelBgStyle: { fill: '#ffffff' }, labelBgPadding: [6, 3] as [number, number], labelBgBorderRadius: 5,
+  }
+}
+export const EDGE_DEFAULTS = edgeLook()
+
+/** Only what differs from the default goes in the file. */
+export function lookOf(e: Edge): Look {
+  const d = (e.data ?? {}) as Look
+  return {
+    ...(d.shape && d.shape !== 'elbow' ? { shape: d.shape } : {}), ...(d.ends && d.ends !== 'end' ? { ends: d.ends } : {}),
+    ...(d.dash ? { dash: true } : {}), ...(d.color ? { color: d.color } : {}),
+  }
+}
 
 // --- the file
 
 export type DocElement = { id: string; kind: Kind; x: number; y: number; w: number; h: number } & ElData
-export type DocArrow = { id: string; from: string; to: string; fromSide?: string; toSide?: string; label?: string }
+export type DocArrow = { id: string; from: string; to: string; fromSide?: string; toSide?: string; label?: string } & Look
 export type Frame = { x: number; y: number; w: number; h: number; preset: string }
 
 // A page is a frame with a name: one artboard on the canvas, one page of the PDF. Several of them make a
@@ -99,7 +147,7 @@ export function toDoc(id: string, name: string, nodes: El[], edges: Edge[], page
     arrows: edges.map((e) => ({
       id: e.id, from: e.source, to: e.target,
       ...(e.sourceHandle ? { fromSide: e.sourceHandle } : {}), ...(e.targetHandle ? { toSide: e.targetHandle } : {}),
-      ...(e.label ? { label: String(e.label) } : {}),
+      ...(e.label ? { label: String(e.label) } : {}), ...lookOf(e),
     })),
   }
 }
@@ -112,12 +160,15 @@ export function fromDoc(doc: Doc): { nodes: El[]; edges: Edge[] } {
 }
 
 export function toNode(id: string, kind: Kind, x: number, y: number, w: number, h: number, data: ElData): El {
-  return { id, type: kind, position: { x, y }, width: w, height: h, data, ...(kind === 'box' ? { zIndex: -1 } : {}) }
+  return { id, type: kind, position: { x, y }, width: w, height: h, data, ...lockProps(data.locked), ...(kind === 'box' ? { zIndex: -1 } : {}) }
 }
+
+/** What being locked means to React Flow: it will not drag it or delete it. */
+export const lockProps = (locked?: boolean) => ({ draggable: !locked, deletable: !locked })
 
 export function toEdge(a: DocArrow): Edge {
   return { id: a.id, source: a.from, target: a.to, sourceHandle: a.fromSide ?? null, targetHandle: a.toSide ?? null,
-           ...(a.label ? { label: a.label } : {}), ...EDGE_DEFAULTS }
+           ...(a.label ? { label: a.label } : {}), ...edgeLook({ shape: a.shape, ends: a.ends, dash: a.dash, color: a.color }) }
 }
 
 let seq = 0

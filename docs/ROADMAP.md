@@ -8,9 +8,9 @@ Each item gets its own spec and an approved plan before any code is written.
 The first material made with Atelier is a refresher course on AI. **Topic 1: understanding
 hallucinations and how to catch them.**
 
-Everything below is prioritised by what that lesson needs: slides, a voiceover, the presenter's
-face in the corner, and later a transcript. If a feature doesn't help produce that lesson, it
-waits.
+Everything below is prioritised by what that lesson needs: slides, a voiceover, a pen to draw
+on them, the presenter's face in the corner, and later a transcript. If a feature doesn't help
+produce that lesson, it waits.
 
 ## 1. Bring over what video-studio got right
 
@@ -34,14 +34,39 @@ What video-studio taught us: build the voiceover and the reveal together.
 - Each page has **speaker notes**: the script, shown under the picture while presenting.
 - Present full screen. `→` reveals the next step, then moves to the next page. `←` goes back.
 
-## 3. Recording, Loom-style: face in the corner
+## 3. Drawing on screen, and from an iPad
+
+A pen for circling, underlining and sketching while presenting. Two kinds of ink:
+
+- **Presenting ink.** It's drawn over the page while presenting and fades or clears on the next
+  step. It isn't saved into the diagram, but it is **recorded as timed strokes** (points plus
+  timestamps), the same way `→` presses are. On export it is redrawn sharp, not filmed.
+- **Ink as an element.** A freehand stroke saved on the page: a new `ink` element kind that can
+  be moved, recoloured and deleted like any other.
+
+Built on Pointer Events, so mouse, trackpad and Apple Pencil are one code path. Pencil adds
+`pointerType: 'pen'` and pressure, so strokes vary in width.
+
+**From an iPad**, in order of effort:
+
+1. **Sidecar (no code).** The iPad becomes a second Mac screen and the Pencil acts as a pointer.
+   Try it first. Whether the browser gets pen pressure through Sidecar has to be tested, not
+   assumed.
+2. **Atelier in iPad Safari over the local network.** Run both servers on `0.0.0.0` and open the
+   Mac's address on the iPad. The Pencil works natively. Catch: outside `localhost`, the camera
+   and mic need HTTPS, so recording from the iPad needs a local certificate. Drawing doesn't.
+3. **The iPad as a remote pen.** The Mac records camera, voice and slides while strokes stream in
+   live from the iPad (WebSocket). This is the full setup and the most work. Build it after
+   recording exists.
+
+## 4. Recording, Loom-style: face in the corner
 
 Record a lesson while presenting: slides, voice, and the **camera in a corner bubble**.
 
 Proposed approach, to confirm in the spec: **record the parts separately and combine them on
 export.** Don't capture the screen as one video.
 
-- Save three things: camera video, mic audio, and the time of every `→` press.
+- Save four things: camera video, mic audio, the time of every `→` press, and the ink strokes.
 - On export, render the slides from SVG at those times, put the camera bubble on top, and add the
   voice (ffmpeg, as a background render job).
 - Why: text stays sharp because it is drawn, not filmed. A typo on a slide gets fixed without
@@ -55,7 +80,7 @@ Open questions to settle by measuring, not guessing:
 - How long exporting a 10-minute lesson takes.
 - Bubble defaults: corner, size, circle or rounded square, mirrored or not.
 
-## 4. Transcript (near future)
+## 5. Transcript (near future)
 
 A transcript of every recorded take, used three ways: captions for the video, a text version of
 the lesson, and a check that what was said matches the script.

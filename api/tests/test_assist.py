@@ -61,3 +61,37 @@ def test_frame_is_shown_and_new_things_start_inside_it():
     assert cv.summary()["frame"] == {"x": 400, "y": 200, "w": 1600, "h": 900}
     r = cv.add_element(kind="text", size="title", text="Hello")
     assert (r["x"], r["y"]) == (460, 250)
+
+
+def test_locked_elements_are_left_alone():
+    cv = Canvas({"id": "d", "name": "x", "elements": [], "arrows": []})
+    a = cv.add_element(kind="card", title="Locked")["id"]
+    b = cv.add_element(kind="card", title="Free", after=a)["id"]
+    cv.get(a)["locked"] = True
+    assert cv.summary()["elements"][0]["locked"] is True                               # the model is told
+    with pytest.raises(ValueError, match="locked"):
+        cv.update_element(a, color="red")
+    with pytest.raises(ValueError, match="locked"):
+        cv.arrange([a, b], "column")
+    r = cv.delete_elements([a, b])
+    assert r == {"deleted": [b], "kept_locked": ["Locked"]} and [e["id"] for e in cv.els] == [a]
+    cv.clear()
+    assert [e["id"] for e in cv.els] == [a]
+
+
+def test_connect_styles_and_free_ends():
+    cv = Canvas({"id": "d", "name": "x", "elements": [], "arrows": []})
+    a = cv.add_element(kind="card", title="A")["id"]
+    b = cv.add_element(kind="card", title="B", after=a)["id"]
+    cv.connect(**{"from": a, "to": b, "shape": "curved", "ends": "both", "dash": True, "color": "teal"})
+    arrow = cv.doc["arrows"][0]
+    assert {k: arrow[k] for k in ("shape", "ends", "dash", "color")} == {"shape": "curved", "ends": "both", "dash": True, "color": "teal"}
+    cv.connect(**{"from": a, "to": b})
+    assert not {"shape", "ends", "dash", "color"} & cv.doc["arrows"][1].keys()        # defaults are not written
+    # a line with a free end: the point is hidden from the model, and goes when its line goes
+    cv.els.append({"id": "pt-1", "kind": "point", "x": 600, "y": 40, "w": 1, "h": 1, "color": "ink"})
+    cv.doc["arrows"].append({"id": "a-free", "from": b, "to": "pt-1"})
+    s = cv.summary()
+    assert all(e["kind"] != "point" for e in s["elements"]) and s["arrows"][-1]["to"] == "(free end)"
+    cv.delete_elements(["a-free"])
+    assert all(e["id"] != "pt-1" for e in cv.els)

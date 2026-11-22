@@ -6,7 +6,7 @@ drawn by hand or by an AI assistant with tools. Local: diagrams are JSON files o
 ## Run it
 ```bash
 cd web && npm install && npm run build && cd ..
-cd api && python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd api && python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app.main:app --port 8100          # http://localhost:8100
 ```
 While working on the editor: `cd web && npm run dev` (http://localhost:5174, proxies /api to :8100).
@@ -37,7 +37,7 @@ anywhere, delete, or import a file. ⌘S saves now. PNG exports go to your brows
 - **Export PDF**: every page, in order, as one PDF — drawn as SVG and printed by Chromium, so **the text
   stays text**: selectable, searchable, sharp at any zoom. Needs the browser once:
   `api/.venv/bin/python -m playwright install chromium`.
-- **Export PNG**: page 1 (or the whole drawing with no pages), at 2x, on white.
+- **PNG**: page 1 (or the whole drawing with no pages), at 2x, on white.
 
 ## The AI chat
 On the left. Describe a diagram or a change ("draw a RAG pipeline…", "make these teal", "group these as AWS"); select

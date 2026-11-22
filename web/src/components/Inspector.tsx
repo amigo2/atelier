@@ -2,7 +2,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { api } from '../api'
 import { ICON_COUNT, findIcons, iconByName } from '../icons'
-import { COLORS, PALETTE, type TextSize } from '../model'
+import { ALIGNS, COLORS, LINE_ENDS, LINE_SHAPES, PALETTE, type Look, type TextSize } from '../model'
 import { useApp } from '../store'
 
 const SIZES: TextSize[] = ['title', 'heading', 'label', 'body']
@@ -70,15 +70,29 @@ function Details() {
 
   if (sel.length > 1) {
     const kinds = Object.entries(sel.reduce<Record<string, number>>((m, n) => ({ ...m, [n.type!]: (m[n.type!] ?? 0) + 1 }), {}))
+    const groups = new Set(sel.map((n) => n.data.group))
+    const oneGroup = groups.size === 1 && !groups.has(undefined)
     return (
       <>
-        <h3>{sel.length} selected</h3>
+        <h3>{oneGroup ? `Group of ${sel.length}` : `${sel.length} selected`}</h3>
         <p className="faint">{kinds.map(([k, n]) => `${n} ${k}${n > 1 ? 's' : ''}`).join(' · ')}</p>
+        {oneGroup
+          ? <button className="wide" onClick={s.ungroup} title="Ungroup (⇧⌘G)">Ungroup</button>
+          : <button className="wide" onClick={s.group} title="Group them, so they select and move as one (⌘G)">Group</button>}
+        {oneGroup && <p className="faint" style={{ marginTop: 8 }}>⌥-click picks one of them on its own.</p>}
         <div className="row"><button onClick={s.duplicate}>Duplicate</button><button className="bad" onClick={() => s.remove(sel.map((n) => n.id))}>Delete</button></div>
         <p className="faint" style={{ marginTop: 14 }}>To change them all (colour, words, line them up, put a box around them), ask the AI: "make these teal".</p>
       </>
     )
   }
+
+  if (sel.length === 1 && sel[0].type === 'point') return (
+    <>
+      <h3>Line end</h3>
+      <p className="faint">A free end. Drag it near a shape's edge and it snaps on; leave it anywhere else and it stays put.</p>
+      <p className="faint">Click the line itself to change its shape, ends, style and colour.</p>
+    </>
+  )
 
   if (sel.length === 1) {
     const n = sel[0], d = n.data
@@ -112,30 +126,67 @@ function Details() {
           <label htmlFor="text">Words</label>
           <textarea id="text" rows={n.type === 'text' ? 3 : 1} value={d.text ?? ''} onFocus={s.checkpoint} onChange={(e) => s.update(n.id, { text: e.target.value })} />
         </>)}
+        {(n.type === 'card' || n.type === 'text') && (<>
+          <label>Align</label>
+          <div className="seg">{ALIGNS.map((a) => (
+            <button key={a} className={(d.align ?? 'left') === a ? 'on' : ''} onClick={() => set({ align: a })}
+              aria-label={`Align ${a}`} aria-pressed={(d.align ?? 'left') === a} title={`Align ${a}`}>{a}</button>
+          ))}</div>
+        </>)}
         {n.type === 'text' && (<>
           <label>Size</label>
           <div className="seg">{SIZES.map((z) => <button key={z} className={d.size === z ? 'on' : ''} onClick={() => set({ size: z })}>{z}</button>)}</div>
         </>)}
         <label>Size on the canvas</label>
-        <p className="faint">{Math.round(n.width ?? 0)} × {Math.round(n.height ?? 0)}: drag a corner to resize.</p>
+        <p className="faint">{Math.round(n.width ?? 0)} × {Math.round(n.height ?? 0)}{d.locked ? ': locked.' : ': drag a corner to resize.'}</p>
+        <button className={`toggle wide ${d.locked ? 'on' : ''}`} aria-pressed={!!d.locked} onClick={() => set({ locked: !d.locked })}
+          title={d.locked ? 'Unlock: move, resize, edit and delete it again' : 'Lock: it stays put, and cannot be resized, edited or deleted'}>
+          {d.locked ? '🔒 Locked · unlock' : '🔓 Lock'}</button>
         <div className="row">
           <button onClick={() => s.toFront(n.id, true)} title="Bring to front">Front</button>
           <button onClick={() => s.toFront(n.id, false)} title="Send to back">Back</button>
           <button onClick={s.duplicate} title="Duplicate (⌘D)">Duplicate</button>
         </div>
-        <button className="bad wide" onClick={() => s.remove([n.id])}>Delete</button>
+        <button className="bad wide" onClick={() => s.remove([n.id])} disabled={!!d.locked} title={d.locked ? 'Unlock it first' : undefined}>Delete</button>
       </>
     )
   }
 
-  if (edge) return (
-    <>
-      <h3>Arrow</h3>
-      <label htmlFor="elabel">Label</label>
-      <input id="elabel" value={String(edge.label ?? '')} placeholder="e.g. HTTPS 443" onFocus={s.checkpoint} onChange={(e) => s.updateEdge(edge.id, e.target.value)} />
-      <button className="bad wide" onClick={() => s.remove([edge.id])}>Delete</button>
-    </>
-  )
+  if (edge) {
+    const l = (edge.data ?? {}) as Look
+    const look = (patch: Look) => s.updateEdgeLook(edge.id, patch)
+    const ends = l.ends ?? 'end'
+    return (
+      <>
+        <h3>{ends === 'none' ? 'Line' : 'Arrow'}</h3>
+        <label>Shape</label>
+        <div className="seg">{LINE_SHAPES.map((x) => (
+          <button key={x} className={(l.shape ?? 'elbow') === x ? 'on' : ''} aria-pressed={(l.shape ?? 'elbow') === x} onClick={() => look({ shape: x })}>{x}</button>
+        ))}</div>
+        <label>Ends</label>
+        <div className="seg">{LINE_ENDS.map((x) => (
+          <button key={x} className={ends === x ? 'on' : ''} aria-pressed={ends === x} onClick={() => look({ ends: x })}
+            title={{ none: 'A plain line', end: 'An arrowhead where it ends', both: 'Arrowheads at both ends' }[x]}>{{ none: 'none', end: '→ end', both: '↔ both' }[x]}</button>
+        ))}</div>
+        <label>Style</label>
+        <div className="seg">
+          <button className={!l.dash ? 'on' : ''} aria-pressed={!l.dash} onClick={() => look({ dash: false })}>solid</button>
+          <button className={l.dash ? 'on' : ''} aria-pressed={!!l.dash} onClick={() => look({ dash: true })}>dashed</button>
+        </div>
+        <label>Colour</label>
+        <div className="swatches">
+          {COLORS.map((c) => (
+            <button key={c} className={`sw ${(l.color ?? 'grey') === c ? 'on' : ''}`} style={{ background: PALETTE[c].bg, borderColor: PALETTE[c].fg }}
+              onClick={() => look({ color: c === 'grey' ? undefined : c })} title={c} aria-label={c}><i style={{ background: PALETTE[c].fg }} /></button>
+          ))}
+        </div>
+        <label htmlFor="elabel">Label</label>
+        <input id="elabel" value={String(edge.label ?? '')} placeholder="e.g. HTTPS 443" onFocus={s.checkpoint} onChange={(e) => s.updateEdge(edge.id, e.target.value)} />
+        <p className="faint" style={{ marginTop: 10 }}>Drag either end to move it: near a shape's edge it snaps on, in empty space it stays free.</p>
+        <button className="bad wide" onClick={() => s.remove([edge.id])}>Delete</button>
+      </>
+    )
+  }
 
   return (
     <>

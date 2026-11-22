@@ -19,20 +19,20 @@ button.wide { width: 100%; margin-top: 10px; }
 input, textarea { font: inherit; font-size: 13px; color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; width: 100%; background: #fff; resize: vertical; }
 input:focus, textarea:focus { outline: 2px solid var(--accent-bg); border-color: var(--accent); }
 
-.app { height: 100%; display: grid; grid-template-columns: 330px minmax(0, 1fr) var(--insp, 250px); grid-template-rows: 52px minmax(0, 1fr); grid-template-areas: "top top top" "chat canvas insp"; }
-.top { grid-area: top; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.app { height: 100%; display: grid; grid-template-columns: var(--chat, 330px) minmax(0, 1fr) var(--insp, 250px); grid-template-rows: 52px minmax(0, 1fr); grid-template-areas: "top top top" "chat canvas insp"; }
+.top { grid-area: top; display: flex; align-items: center; gap: 6px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .brand { font-size: 15px; letter-spacing: -.01em; margin-right: 6px; }
-.name { width: 240px; border-color: transparent; font-weight: 600; font-size: 14px; }
+.name { width: 160px; min-width: 100px; flex-shrink: 1; border-color: transparent; font-weight: 600; font-size: 14px; }
 .name:hover { border-color: var(--line); }
 .saved { font-size: 12px; color: var(--faint); }
 .grow { flex: 1; }
 
 .sep { width: 1px; height: 24px; background: var(--line); margin: 0 4px; }
-.tools { display: flex; gap: 4px; }
-.tools button { padding: 5px 9px; }
+.tools { display: flex; gap: 6px; align-items: flex-end; }
+.tools button { padding: 3px 6px; font-size: 12.5px; }
 .empty { line-height: 1.7; text-align: center; }
 
-.chat { grid-area: chat; display: flex; flex-direction: column; min-height: 0; background: #fbfcfe; border-right: 1px solid var(--line); }
+.chat { position: relative; grid-area: chat; display: flex; flex-direction: column; min-height: 0; background: #fbfcfe; border-right: 1px solid var(--line); }
 .chat-h { display: flex; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 14px; }
 .chat-log { flex: 1; min-height: 0; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .msg { font-size: 13px; line-height: 1.5; padding: 9px 11px; border-radius: 10px; max-width: 92%; white-space: pre-wrap; }
@@ -87,7 +87,7 @@ button.link:hover:not(:disabled) { background: none; text-decoration: underline;
 .box-title { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .pill { width: 100%; height: 100%; border: 1px solid; border-radius: 999px; display: grid; place-items: center; font-size: 12px; font-weight: 600; padding: 0 10px; white-space: nowrap; }
 .pill-v { overflow: hidden; text-overflow: ellipsis; }
-textarea.edit { font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; background: rgba(255,255,255,.75); border: 1px dashed var(--accent); border-radius: 4px; padding: 0 2px; resize: none; width: 100%; overflow: hidden; }
+textarea.edit { text-align: inherit; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; background: rgba(255,255,255,.75); border: 1px dashed var(--accent); border-radius: 4px; padding: 0 2px; resize: none; width: 100%; overflow: hidden; }
 
 /* connection points: shown on hover or when selected, hidden in exports */
 .react-flow__handle.hd { width: 9px; height: 9px; background: #fff; border: 1.5px solid var(--accent); opacity: 0; transition: opacity .12s; }
@@ -96,7 +96,6 @@ textarea.edit { font: inherit; color: inherit; letter-spacing: inherit; text-tra
 .react-flow__resize-control.rz-line { border-color: var(--accent); }
 .react-flow__edge-textbg { fill: #fff; }
 .react-flow__edge-text { font-size: 11px; fill: var(--muted); }
-.react-flow__edge.selected .react-flow__edge-path { stroke: var(--accent) !important; }
 .exporting .react-flow__node.selected .card, .exporting .react-flow__node.selected .pill, .exporting .react-flow__node.selected .txt { box-shadow: none; }
 
 .sel-chip { font-size: 11.5px; color: var(--accent); background: var(--accent-bg); border-radius: 6px; padding: 3px 8px; margin-bottom: 6px; display: inline-block; }
@@ -109,6 +108,12 @@ textarea.edit { font: inherit; color: inherit; letter-spacing: inherit; text-tra
 .insp:not(.shut) h3 { padding-right: 30px; }
 .insp.shut { padding: 10px 0; display: flex; flex-direction: column; align-items: center; gap: 12px; overflow: hidden; }
 .insp.shut .fold { position: static; }
+.chat-h .fold { position: static; margin-left: 6px; }
+.chat.shut { padding: 10px 0; align-items: center; gap: 12px; overflow: hidden; }
+.chat.shut .fold { position: static; }
+.chat-grip { position: absolute; top: 0; right: -4px; bottom: 0; width: 8px; cursor: col-resize; z-index: 5; touch-action: none; }
+.chat-grip:hover, body.resizing .chat-grip { background: linear-gradient(90deg, transparent 3px, var(--line) 3px, var(--line) 5px, transparent 5px); }
+body.resizing { cursor: col-resize; user-select: none; }
 .rail-label { writing-mode: vertical-rl; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
 
 /* the export frame: what the PNG will be */
@@ -223,3 +228,40 @@ textarea.lines {
 }
 .icopick:hover { background: #f2f5fc; color: #1a2233; }
 .icopick.on { background: #e9f0ff; color: #3a6df0; }
+.lock-badge { position: absolute; top: -10px; right: -10px; z-index: 6; font-size: 11px; line-height: 1; padding: 3px; background: #fff; border: 1px solid var(--line); border-radius: 999px; pointer-events: none; }
+.exporting .lock-badge { display: none; }
+
+/* a line's free end: nothing to see unless it, or its line, is selected */
+.pt { width: 100%; height: 100%; border-radius: 50%; }
+.pt.on { background: #fff; box-shadow: 0 0 0 2px var(--accent); cursor: move; }
+.react-flow__node-point:hover .pt { box-shadow: 0 0 0 2px var(--accent); cursor: move; }
+.pt-h.react-flow__handle { top: 50%; left: 50%; right: auto; bottom: auto; width: 1px; height: 1px; min-width: 0; min-height: 0; transform: translate(-50%, -50%); border: 0; background: transparent; opacity: 0; }
+.exporting .pt { box-shadow: none !important; background: transparent !important; }
+
+/* drawing a line with the tool */
+.line-draw { position: absolute; inset: 0; z-index: 8; cursor: crosshair; touch-action: none; }
+.line-draw svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.line-draw .snap-side { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.line-draw .hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: var(--ink, #1a2233); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; }
+
+/* the toolbar, grouped */
+.tgroup { display: flex; flex-direction: column; gap: 2px; }
+.tgroup-l { font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); padding-left: 2px; line-height: 1; }
+.tgroup-b { display: flex; gap: 2px; }
+.tools .tgroup + .tgroup { border-left: 1px solid var(--line); padding-left: 6px; }
+.tools button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+
+/* the header stays one line: nothing in it wraps, and the toolbar scrolls sideways before anything is crushed */
+.top > * { flex-shrink: 0; white-space: nowrap; }
+.top > .name { flex-shrink: 20; }
+.top > .tools { flex-shrink: .02; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.grp-outline { position: absolute; top: 0; left: 0; border: 1.5px dashed var(--accent); border-radius: 10px; pointer-events: none; }
+.exporting .grp-outline { display: none; }
+
+/* a selected line: a little heavier, and a white dot at each end (its grips: drag one to move that end) */
+.react-flow__edge.selected .react-flow__edge-path { stroke-width: 2.5 !important; filter: drop-shadow(0 0 3px rgba(58,109,240,.45)); }
+.react-flow__edge.selected .react-flow__edgeupdater { fill: #fff; stroke: var(--accent); stroke-width: 1.5; cursor: grab; }
+.react-flow__edge .react-flow__edge-interaction { cursor: move; }
+.exporting .react-flow__edgeupdater { display: none; }
+body.dragging-line, body.dragging-line * { cursor: grabbing !important; user-select: none; }
+.edge-label-edit { position: absolute; top: 0; left: 0; z-index: 10; width: 160px; font-size: 12px; font-weight: 600; text-align: center; padding: 3px 6px; border: 1.5px solid var(--accent); border-radius: 5px; background: #fff; pointer-events: all; }

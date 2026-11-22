@@ -3,24 +3,32 @@
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react'
 import { useEffect, useRef } from 'react'
 import { iconByName } from '../icons'
+import { fitToText } from '../fit'
 import { PALETTE, type El, type ElData } from '../model'
 import { useApp } from '../store'
+
+// a card's title row is a flex row (icon, then words), so it aligns by justifying, not by text-align
+const JUSTIFY = { left: 'flex-start', center: 'center', right: 'flex-end' } as const
 
 const SIDES = [['t', Position.Top], ['r', Position.Right], ['b', Position.Bottom], ['l', Position.Left]] as const
 
 function Frame({ id, selected, min, children }: { id: string; selected: boolean; min: [number, number]; children: React.ReactNode }) {
   const checkpoint = useApp((s) => s.checkpoint)
+  const locked = useApp((s) => !!s.nodes.find((n) => n.id === id)?.data.locked)
   return (
     <>
-      <NodeResizer isVisible={selected} minWidth={min[0]} minHeight={min[1]} onResizeStart={checkpoint}
+      {locked && selected && <span className="lock-badge" title="Locked: unlock it in the panel on the right">🔒</span>}
+      <NodeResizer isVisible={selected && !locked} minWidth={min[0]} minHeight={min[1]} onResizeStart={checkpoint}
         lineClassName="rz-line" handleClassName="rz-handle" />
       {SIDES.map(([k, p]) => <Handle key={k} id={k} type="source" position={p} className="hd" />)}
-      <div className="el-in" onDoubleClick={() => useApp.getState().setEditing(id)}>{children}</div>
+      <div className="el-in" onDoubleClick={() => { if (!locked) useApp.getState().setEditing(id) }}>{children}</div>
     </>
   )
 }
 
-// a word or two, edited in place: Enter (or leaving the field) keeps it, Escape too; Shift+Enter for a new line
+// A word or two, edited in place. Enter keeps it, in every field, as does Escape or leaving the field.
+// Shift+Enter makes a new line where one is allowed. (Enter used to type a newline in a multi-line field,
+// and since editing starts with the words selected, that newline replaced them: Enter deleted the text.)
 function Field({ id, k, value, className, multiline, placeholder }: { id: string; k: keyof ElData; value?: string; className: string; multiline?: boolean; placeholder?: string }) {
   const editing = useApp((s) => s.editing === id)
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -29,10 +37,11 @@ function Field({ id, k, value, className, multiline, placeholder }: { id: string
   return (
     <textarea ref={ref} data-first={k === 'title' || k === 'text' ? '1' : '0'} className={`${className} edit nodrag nowheel`} value={value ?? ''} placeholder={placeholder}
       rows={multiline ? 2 : 1}
-      onChange={(e) => useApp.getState().update(id, { [k]: e.target.value })}
+      onChange={(e) => { useApp.getState().update(id, { [k]: e.target.value }); fitToText(id, true) }}
       onKeyDown={(e) => {
         e.stopPropagation()
-        if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey && !multiline)) { e.preventDefault(); useApp.getState().setEditing(null) }
+        if (e.key === 'Enter' && e.shiftKey && !multiline) { e.preventDefault(); return }
+        if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey)) { e.preventDefault(); useApp.getState().setEditing(null) }
       }}
       onBlur={(e) => { if (!e.relatedTarget?.closest?.(`[data-id="${id}"]`)) useApp.getState().setEditing(null) }} />
   )
@@ -66,7 +75,7 @@ function Lines({ id, value, onChange, placeholder, children }: {
   if (!editing) return <>{children}</>
   return (
     <textarea ref={ref} className="lines edit nodrag nowheel" value={value} placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => { onChange(e.target.value); fitToText(id, true) }}
       onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); useApp.getState().setEditing(null) } }}
       onBlur={() => useApp.getState().setEditing(null)} />
   )
@@ -174,8 +183,8 @@ export function Card({ id, data, selected }: NodeProps<El>) {
   const c = PALETTE[data.color]
   return (
     <Frame id={id} selected={selected} min={[100, 60]}>
-      <div className="card" style={{ background: c.bg, borderColor: c.line }}>
-        <div className="card-t" style={{ color: c.fg }}>
+      <div className="card" style={{ background: c.bg, borderColor: c.line, textAlign: data.align ?? 'left' }}>
+        <div className="card-t" style={{ color: c.fg, justifyContent: JUSTIFY[data.align ?? 'left'] }}>
           {data.icon && !data.emoji && <CardIcon name={data.icon} />}
           {data.emoji && <span className="emoji">{data.emoji}</span>}
           <Field id={id} k="title" value={data.title} className="card-title" placeholder="Title" />
@@ -194,7 +203,7 @@ function CardIcon({ name }: { name: string }) {
 export function Text({ id, data, selected }: NodeProps<El>) {
   return (
     <Frame id={id} selected={selected} min={[40, 20]}>
-      <div className={`txt txt-${data.size ?? 'body'}`} style={{ color: data.size === 'label' ? PALETTE.grey.fg : PALETTE[data.color].fg, ...(data.fs ? { fontSize: data.fs } : {}) }}>
+      <div className={`txt txt-${data.size ?? 'body'}`} style={{ color: data.size === 'label' ? PALETTE.grey.fg : PALETTE[data.color].fg, textAlign: data.align ?? 'left', ...(data.fs ? { fontSize: data.fs } : {}) }}>
         <Field id={id} k="text" value={data.text} className="txt-v" multiline={data.size === 'body'} placeholder="Text" />
       </div>
     </Frame>
@@ -223,4 +232,25 @@ export function Pill({ id, data, selected }: NodeProps<El>) {
   )
 }
 
-export const NODE_TYPES = { card: Card, text: Text, box: Box, pill: Pill, list: List, table: Table, image: Image, bars: Bars, icon: Icon }
+/**
+ * The free end of a line. Invisible, except as a small dot while it or its line is selected, so there is
+ * something to grab. Its one connection point sits at its centre and faces the other end of the line, so a
+ * curve leaves it heading the right way.
+ */
+export function Point({ id, selected }: NodeProps<El>) {
+  const facing = useApp((s) => {
+    const e = s.edges.find((x) => x.source === id || x.target === id)
+    const me = s.nodes.find((n) => n.id === id), other = e && s.nodes.find((n) => n.id === (e.source === id ? e.target : e.source))
+    if (!me || !other) return Position.Right
+    const dx = other.position.x + (other.width ?? 0) / 2 - me.position.x, dy = other.position.y + (other.height ?? 0) / 2 - me.position.y
+    return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? Position.Right : Position.Left) : (dy >= 0 ? Position.Bottom : Position.Top)
+  })
+  const lineSelected = useApp((s) => s.edges.some((x) => x.selected && (x.source === id || x.target === id)))
+  return (
+    <div className={`pt ${selected ? 'on' : ''} ${lineSelected ? 'line-on' : ''}`} title="A line's free end: drag it near a shape to attach it">
+      <Handle id="c" type="source" position={facing} className="pt-h" isConnectable={false} />
+    </div>
+  )
+}
+
+export const NODE_TYPES = { card: Card, text: Text, box: Box, pill: Pill, list: List, table: Table, image: Image, bars: Bars, icon: Icon, point: Point }

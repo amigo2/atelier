@@ -23,7 +23,10 @@ GAP = 36
 DEFAULT = {"card": (180, 110), "box": (420, 260), "pill": (110, 28)}
 TEXT_H = {"title": 44, "heading": 32, "label": 24, "body": 60}
 CHAR_W = {"title": 15.5, "heading": 10.5, "label": 8.6, "body": 7.6}
-FIELDS = ("title", "sub", "emoji", "text", "size", "color", "x", "y", "w", "h")
+ALIGNS = ["left", "center", "right"]
+SHAPES = ["straight", "curved", "elbow"]
+ENDS = ["none", "end", "both"]
+FIELDS = ("title", "sub", "emoji", "text", "size", "align", "color", "x", "y", "w", "h")
 
 _place = {"type": "object", "properties": {
     "after": {"type": "string", "description": "An element id: put the new one next to it"},
@@ -49,15 +52,16 @@ TOOLS = [
             "emoji": {"type": "string", "description": "card: one emoji before the title"},
             "text": {"type": "string", "description": "text or pill"},
             "size": {"type": "string", "enum": SIZES, "description": "text only"},
+            "align": {"type": "string", "enum": ALIGNS, "description": "card or text: where the words sit (default left)"},
             "color": {"type": "string", "enum": COLORS},
             **_place["properties"]}, "required": ["kind"]}}},
     {"type": "function", "function": {
         "name": "update_element",
-        "description": "Change an element: its words, emoji, colour, text size, position (x, y) or size (w, h). Only what is given changes.",
+        "description": "Change an element: its words, emoji, colour, text size, alignment, position (x, y) or size (w, h). Only what is given changes.",
         "parameters": {"type": "object", "properties": {
             "id": {"type": "string"}, "title": {"type": "string"}, "sub": {"type": "string"}, "emoji": {"type": "string"},
-            "text": {"type": "string"}, "size": {"type": "string", "enum": SIZES}, "color": {"type": "string", "enum": COLORS},
-            "x": {"type": "number"}, "y": {"type": "number"}, "w": {"type": "number"}, "h": {"type": "number"}}, "required": ["id"]}}},
+            "text": {"type": "string"}, "size": {"type": "string", "enum": SIZES}, "align": {"type": "string", "enum": ALIGNS},
+            "color": {"type": "string", "enum": COLORS}, "x": {"type": "number"}, "y": {"type": "number"}, "w": {"type": "number"}, "h": {"type": "number"}}, "required": ["id"]}}},
     {"type": "function", "function": {
         "name": "delete_elements",
         "description": "Delete elements (their arrows go too) or arrows, by id.",
@@ -66,7 +70,11 @@ TOOLS = [
         "name": "connect",
         "description": "Draw an arrow from one element to another, optionally labelled. The sides are chosen from where they are.",
         "parameters": {"type": "object", "properties": {
-            "from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string", "description": "A few words, e.g. HTTPS 443"}},
+            "from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string", "description": "A few words, e.g. HTTPS 443"},
+            "shape": {"type": "string", "enum": SHAPES, "description": "default elbow"},
+            "ends": {"type": "string", "enum": ENDS, "description": "arrowheads: none (a plain line), end (default) or both"},
+            "dash": {"type": "boolean", "description": "a dashed line, e.g. for something optional or async"},
+            "color": {"type": "string", "enum": COLORS}},
             "required": ["from", "to"]}}},
     {"type": "function", "function": {
         "name": "arrange",
@@ -142,9 +150,14 @@ class Canvas:
         return i
 
     def summary(self, selected: list[str] | None = None) -> dict:
-        words = lambda e: {k: e[k] for k in ("title", "sub", "emoji", "text", "size") if e.get(k)}
-        return {"elements": [{"id": e["id"], "kind": e["kind"], "x": e["x"], "y": e["y"], "w": e["w"], "h": e["h"], "color": e.get("color"), **words(e)} for e in self.els],
-                "arrows": [{"id": a["id"], "from": a["from"], "to": a["to"], **({"label": a["label"]} if a.get("label") else {})} for a in self.doc["arrows"]],
+        words = lambda e: {k: e[k] for k in ("title", "sub", "emoji", "text", "size", "align") if e.get(k)}
+        # A free line end is stored as a `point` element. It is a detail of the line, not something on the page.
+        pts = {e["id"] for e in self.els if e["kind"] == "point"}
+        end = lambda i: "(free end)" if i in pts else i
+        style = lambda a: {k: a[k] for k in ("label", "shape", "ends", "dash", "color") if a.get(k)}
+        return {"elements": [{"id": e["id"], "kind": e["kind"], "x": e["x"], "y": e["y"], "w": e["w"], "h": e["h"], "color": e.get("color"), **words(e),
+                              **({"locked": True} if e.get("locked") else {})} for e in self.els if e["kind"] != "point"],
+                "arrows": [{"id": a["id"], "from": end(a["from"]), "to": end(a["to"]), **style(a)} for a in self.doc["arrows"]],
                 **({"frame": {k: self.doc["frame"][k] for k in ("x", "y", "w", "h")}} if self.doc.get("frame") else {}),
                 **({"selected": selected} if selected is not None else {})}
 
@@ -198,6 +211,8 @@ class Canvas:
         for f in ("title", "sub", "emoji", "text"):
             if a.get(f):
                 e[f] = str(a[f])
+        if a.get("align") in ALIGNS and a["align"] != "left" and k in ("card", "text"):
+            e["align"] = a["align"]
         if k == "text":
             e["size"] = a.get("size") if a.get("size") in SIZES else "body"
             e.setdefault("text", "Text")
@@ -212,8 +227,13 @@ class Canvas:
         self.steps.append(f"added {k} {e.get('title') or e.get('text') or ''}".strip())
         return {"id": e["id"], "x": e["x"], "y": e["y"], "w": w, "h": h}
 
+    def _unlocked(self, e: dict) -> dict:
+        if e.get("locked"):
+            raise ValueError(f"{e.get('title') or e.get('text') or e['id']} is locked: leave it as it is, or ask the person to unlock it")
+        return e
+
     def update_element(self, id: str, **a) -> dict:
-        e = self.get(id)
+        e = self._unlocked(self.get(id))
         changed = []
         for f in FIELDS:
             if f not in a or a[f] is None:
@@ -223,18 +243,25 @@ class Canvas:
                 raise ValueError(f"colour must be one of {COLORS}")
             if f == "size" and v not in SIZES:
                 raise ValueError(f"size must be one of {SIZES}")
+            if f == "align" and v not in ALIGNS:
+                raise ValueError(f"align must be one of {ALIGNS}")
             e[f] = int(v) if f in ("x", "y", "w", "h") else str(v)
             changed.append(f)
         self.steps.append(f"changed {e.get('title') or e.get('text') or id}: {', '.join(changed)}")
         return {"id": id, "changed": changed}
 
     def delete_elements(self, ids: list[str]) -> dict:
-        gone = set(ids)
+        kept = [e.get("title") or e.get("text") or e["id"] for e in self.els if e["id"] in ids and e.get("locked")]
+        gone = {i for i in ids if not any(e["id"] == i and e.get("locked") for e in self.els)}
         names = [e.get("title") or e.get("text") or e["id"] for e in self.els if e["id"] in gone]
         self.doc["elements"] = [e for e in self.els if e["id"] not in gone]
         self.doc["arrows"] = [a for a in self.doc["arrows"] if a["id"] not in gone and a["from"] not in gone and a["to"] not in gone]
-        self.steps.append(f"deleted {', '.join(names) or 'arrows'}")
-        return {"deleted": ids}
+        # a free line end whose line is gone has nothing left to do
+        used = {x for ar in self.doc["arrows"] for x in (ar["from"], ar["to"])}
+        self.doc["elements"] = [e for e in self.els if e["kind"] != "point" or e["id"] in used]
+        if gone:
+            self.steps.append(f"deleted {', '.join(names) or 'arrows'}")
+        return {"deleted": sorted(gone), **({"kept_locked": kept} if kept else {})}
 
     def connect(self, **a) -> dict:
         f, t = self.get(a["from"]), self.get(a["to"])
@@ -246,12 +273,20 @@ class Canvas:
         arrow = {"id": self._id("a"), "from": f["id"], "to": t["id"], "fromSide": sides[0], "toSide": sides[1]}
         if a.get("label"):
             arrow["label"] = str(a["label"])
+        if a.get("shape") in SHAPES and a["shape"] != "elbow":
+            arrow["shape"] = a["shape"]
+        if a.get("ends") in ENDS and a["ends"] != "end":
+            arrow["ends"] = a["ends"]
+        if a.get("dash"):
+            arrow["dash"] = True
+        if a.get("color") in COLORS:
+            arrow["color"] = a["color"]
         self.doc["arrows"].append(arrow)
         self.steps.append(f"connected {f.get('title') or f.get('text') or f['id']} → {t.get('title') or t.get('text') or t['id']}")
         return {"id": arrow["id"]}
 
     def arrange(self, ids: list[str], direction: str, gap: float | None = None) -> dict:
-        es = [self.get(i) for i in ids]
+        es = [self._unlocked(self.get(i)) for i in ids]
         if not es:
             return {"arranged": []}
         g = int(gap if gap is not None else GAP)
@@ -292,9 +327,13 @@ class Canvas:
         return r
 
     def clear(self) -> dict:
-        self.doc["elements"], self.doc["arrows"] = [], []
-        self.steps.append("cleared the canvas")
-        return {"cleared": True}
+        # what is locked stays, with any arrow whose both ends stay
+        keep = [e for e in self.els if e.get("locked")]
+        ids = {e["id"] for e in keep}
+        self.doc["elements"] = keep
+        self.doc["arrows"] = [a for a in self.doc["arrows"] if a["from"] in ids and a["to"] in ids]
+        self.steps.append("cleared the canvas" + (f", kept {len(keep)} locked" if keep else ""))
+        return {"cleared": True, **({"kept_locked": len(keep)} if keep else {})}
 
     def call(self, name: str, args: dict):
         fn = {"read_diagram": self.read_diagram, "add_element": self.add_element, "update_element": self.update_element,

@@ -14,7 +14,9 @@ const EXAMPLES = [
   'Group these in a box called AWS · eu-west-1',
 ]
 
-export function Chat() {
+type Props = { open: boolean; toggle: () => void; width: number; resize: (w: number, done?: boolean) => void; reset: () => void }
+
+export function Chat({ open, toggle, width, resize, reset }: Props) {
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -55,10 +57,39 @@ export function Chat() {
     }
   }
 
+  // Hidden, the chat is a rail like the details panel's. It stays mounted, so the conversation is still
+  // there when it comes back.
+  if (!open) return (
+    <section className="chat shut" aria-label="AI chat (hidden)">
+      <button className="fold" onClick={toggle} title="Show the AI chat" aria-label="Show chat">›</button>
+      <span className="rail-label">AI chat</span>
+    </section>
+  )
+
+  // drag the right edge to resize; double-click it to go back to the default width
+  const grab = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const x0 = e.clientX, w0 = width, grip = e.currentTarget
+    grip.setPointerCapture(e.pointerId)
+    document.body.classList.add('resizing')
+    const move = (m: PointerEvent) => resize(w0 + m.clientX - x0)
+    const up = (u: PointerEvent) => {
+      resize(w0 + u.clientX - x0, true)
+      document.body.classList.remove('resizing')
+      grip.removeEventListener('pointermove', move)
+      grip.removeEventListener('pointerup', up)
+    }
+    grip.addEventListener('pointermove', move)
+    grip.addEventListener('pointerup', up)
+  }
+
   return (
     <section className="chat" aria-label="AI chat">
+      <div className="chat-grip" onPointerDown={grab} onDoubleClick={reset} role="separator" aria-orientation="vertical"
+        aria-label="Resize the chat" title="Drag to resize · double-click for the default width" />
       <div className="chat-h"><b>✦ AI</b><span className="grow" />
-        {msgs.length > 0 && <button className="link" onClick={() => setMsgs([])}>Start again</button>}</div>
+        {msgs.length > 0 && <button className="link" onClick={() => setMsgs([])}>Start again</button>}
+        <button className="fold" onClick={toggle} title="Hide the AI chat" aria-label="Hide chat">‹</button></div>
       <div className="chat-log" ref={log}>
         {!msgs.length && (
           <div className="msg ai">
