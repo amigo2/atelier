@@ -2,6 +2,7 @@
 // The canvas works on React Flow nodes and edges; toDoc / fromDoc translate, so the saved file stays small
 // and readable (no React Flow internals in it).
 import { MarkerType, type Edge, type Node } from '@xyflow/react'
+import { LINE_Z } from './layers'
 
 export const PALETTE = {
   ink: { fg: '#1a2233', bg: '#ffffff', line: '#1a2233' },
@@ -73,24 +74,24 @@ export const arrow = (color = '#8a94a8') => ({ type: MarkerType.ArrowClosed, col
 // --- how a line looks
 
 export type LineShape = 'straight' | 'curved' | 'elbow'
-export type LineEnds = 'none' | 'end' | 'both'
+export type LineEnds = 'none' | 'start' | 'end' | 'both'
 export const LINE_SHAPES: LineShape[] = ['straight', 'curved', 'elbow']
-export const LINE_ENDS: LineEnds[] = ['none', 'end', 'both']
+export const LINE_ENDS: LineEnds[] = ['none', 'start', 'end', 'both']
 /** What a line looks like. Every field is optional: an arrow saved before these existed is elbowed, grey, one head. */
 export type Look = { shape?: LineShape; ends?: LineEnds; dash?: boolean; color?: Color }
 const EDGE_TYPE: Record<LineShape, string> = { straight: 'straight', curved: 'default', elbow: 'smoothstep' }
 
 /**
- * A look, as React Flow wants it. Lines sit above shapes (zIndex 1): a line drawn under a card disappears behind
+ * A look, as React Flow wants it. Lines sit above every element (see layers.ts): a line drawn under a card disappears behind
  * it, and the line is the point of an arrow.
  */
 export function edgeLook(l: Look = {}) {
   const stroke = l.color ? PALETTE[l.color].fg : '#8a94a8'
   const ends = l.ends ?? 'end'
   return {
-    type: EDGE_TYPE[l.shape ?? 'elbow'], zIndex: 1, data: { ...l },
-    markerEnd: ends === 'none' ? undefined : arrow(stroke),
-    markerStart: ends === 'both' ? arrow(stroke) : undefined,
+    type: EDGE_TYPE[l.shape ?? 'elbow'], zIndex: LINE_Z, data: { ...l },
+    markerEnd: ends === 'end' || ends === 'both' ? arrow(stroke) : undefined,
+    markerStart: ends === 'start' || ends === 'both' ? arrow(stroke) : undefined,
     style: { stroke, strokeWidth: 1.5, ...(l.dash ? { strokeDasharray: '6 5' } : {}) },
     // a label is a small white tag on the line, so it reads over the grid and over anything the line crosses
     labelStyle: { fontSize: 12, fontWeight: 600, fill: l.color ? PALETTE[l.color].fg : '#616c81' },
@@ -160,7 +161,8 @@ export function fromDoc(doc: Doc): { nodes: El[]; edges: Edge[] } {
 }
 
 export function toNode(id: string, kind: Kind, x: number, y: number, w: number, h: number, data: ElData): El {
-  return { id, type: kind, position: { x, y }, width: w, height: h, data, ...lockProps(data.locked), ...(kind === 'box' ? { zIndex: -1 } : {}) }
+  // no zIndex here: which element is drawn over which is worked out from where they are (layers.ts)
+  return { id, type: kind, position: { x, y }, width: w, height: h, data, ...lockProps(data.locked) }
 }
 
 /** What being locked means to React Flow: it will not drag it or delete it. */

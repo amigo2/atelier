@@ -87,7 +87,7 @@ button.link:hover:not(:disabled) { background: none; text-decoration: underline;
 .box-title { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .pill { width: 100%; height: 100%; border: 1px solid; border-radius: 999px; display: grid; place-items: center; font-size: 12px; font-weight: 600; padding: 0 10px; white-space: nowrap; }
 .pill-v { overflow: hidden; text-overflow: ellipsis; }
-textarea.edit { text-align: inherit; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; background: rgba(255,255,255,.75); border: 1px dashed var(--accent); border-radius: 4px; padding: 0 2px; resize: none; width: 100%; overflow: hidden; }
+textarea.edit { flex-shrink: 0; text-align: inherit; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; background: rgba(255,255,255,.75); border: 1px dashed var(--accent); border-radius: 4px; padding: 0 2px; resize: none; width: 100%; overflow: hidden; }
 
 /* connection points: shown on hover or when selected, hidden in exports */
 .react-flow__handle.hd { width: 9px; height: 9px; background: #fff; border: 1.5px solid var(--accent); opacity: 0; transition: opacity .12s; }
@@ -265,3 +265,34 @@ textarea.lines {
 .exporting .react-flow__edgeupdater { display: none; }
 body.dragging-line, body.dragging-line * { cursor: grabbing !important; user-select: none; }
 .edge-label-edit { position: absolute; top: 0; left: 0; z-index: 10; width: 160px; font-size: 12px; font-weight: 600; text-align: center; padding: 3px 6px; border: 1.5px solid var(--accent); border-radius: 5px; background: #fff; pointer-events: all; }
+
+/* a row of choices in the details panel stays one line: the buttons share the width */
+.insp .seg { flex-wrap: nowrap; gap: 3px; }
+.insp .seg button { flex: 1 1 0; min-width: 0; padding: 4px 3px; font-size: 11.5px; white-space: nowrap; }
+.react-flow__handle.hd-spot { opacity: 0 !important; pointer-events: none; }   /* where a line meets an edge off-centre: a position, not a dot */
+
+/* a line break typed in a title shows as one: the words wrap to the element's width, and keep their own breaks */
+.card-title, .box-title { white-space: pre-wrap; overflow-wrap: anywhere; }
+.txt-v { overflow-wrap: anywhere; }
+
+/* rich words: a bullet hangs, so a wrapped line lines up with the words, not the dot */
+.rich-b { display: flex; gap: .45em; }
+.rich-dot { flex: none; }
+.rich-b > span:last-child { min-width: 0; }
+/* the bar over selected words */
+.fmt-bar { position: fixed; z-index: 80; display: flex; align-items: center; gap: 2px; padding: 4px; background: #fff; border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 6px 20px rgba(26,34,51,.16); }
+.fmt-bar button { min-width: 26px; height: 26px; padding: 0 6px; font-size: 13px; border-color: transparent; }
+.fmt-bar button:hover { background: var(--accent-bg); }
+.fmt-sep { width: 1px; height: 18px; background: var(--line); margin: 0 3px; }
+.fmt-bar .fmt-sw { min-width: 22px; padding: 0; display: grid; place-items: center; }
+.fmt-sw i { width: 12px; height: 12px; border-radius: 50%; }
+
+/* a panel's draggable edge (the details panel's left edge) */
+.grip { position: absolute; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 5; touch-action: none; }
+.grip-left { left: -4px; }
+.grip-right { right: -4px; }
+.grip:hover, body.resizing .grip { background: linear-gradient(90deg, transparent 3px, var(--line) 3px, var(--line) 5px, transparent 5px); }
+/* the open details panel: its edge stays put while what is in it scrolls */
+.insp:not(.shut) { padding: 0; overflow: hidden; display: flex; }
+.insp-in { position: relative; flex: 1; min-width: 0; overflow: auto; padding: 14px; }
+.grip-left { left: 0; }

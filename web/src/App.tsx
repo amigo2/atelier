@@ -1,7 +1,7 @@
 // Atelier: a diagram editor. The canvas in the middle, what you can add on the left, the selected thing's
 // colour and words on the right, the diagram's name, undo and export along the top. Saved as you go.
 import { Background, BackgroundVariant, ConnectionMode, Controls, ReactFlow, ReactFlowProvider, SelectionMode, ViewportPortal, useReactFlow, type Connection, type Edge, type FinalConnectionState, type HandleType } from '@xyflow/react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
 import { OpenDialog, uniqueName } from './components/OpenDialog'
 import { NODE_TYPES } from './components/Shapes'
@@ -12,12 +12,15 @@ import { exportPdf } from './exportPdf'
 import { fitToText } from './fit'
 import { exportPng } from './exportPng'
 import { POINT, PRESETS, fromDoc, newId, pagesFromDoc, pagesInOrder, toDoc, type El, type ElData, type Kind, type Look } from './model'
-import { snapAt } from './snap'
+import { SNAP, snapAt } from './snap'
+import { withLayers } from './layers'
 import { useApp } from './store'
 
 const LAST = 'atelier.last'
 const CHAT_W = 330
 const clampChat = (w: number) => Math.round(Math.min(720, Math.max(240, w)))
+const INSP_W = 250
+const clampInsp = (w: number) => Math.round(Math.min(720, Math.max(220, w)))
 
 type Tool = { label: string; hint: string } & ({ kind: Kind; data?: Partial<ElData> } | { line: Look } | { image: true })
 
@@ -62,12 +65,17 @@ function groupOutlines(nodes: El[]) {
 function Editor() {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, checkpoint, name, saved, past, future, pages } = useApp()
   const rf = useReactFlow()
+  // what sits inside something is drawn above it, worked out afresh as things move (layers.ts)
+  const layered = useMemo(() => withLayers(nodes), [nodes])
   const [dialog, setDialog] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const pic = useRef<HTMLInputElement>(null)
   const [inspOpen, setInspOpen] = useState(() => localStorage.getItem('atelier.details') !== 'shut')
   const toggleInsp = () => setInspOpen((o) => { localStorage.setItem('atelier.details', o ? 'shut' : 'open'); return !o })
+  // and its left edge drags, like the chat's right edge: a wider panel for writing in
+  const [inspW, setInspW] = useState(() => clampInsp(Number(localStorage.getItem('atelier.inspW')) || INSP_W))
+  const resizeInsp = (w: number, done = false) => { const c = clampInsp(w); setInspW(c); if (done) localStorage.setItem('atelier.inspW', String(c)) }
   // the chat folds away like the details panel, and its right edge drags to make it wider or narrower
   const [chatOpen, setChatOpen] = useState(() => localStorage.getItem('atelier.chat') !== 'shut')
   const toggleChat = () => setChatOpen((o) => { localStorage.setItem('atelier.chat', o ? 'shut' : 'open'); return !o })
@@ -178,7 +186,7 @@ function Editor() {
   const onConnectEnd = (e: MouseEvent | TouchEvent, c: FinalConnectionState) => {
     if (reconnecting.current || c.isValid || !c.fromNode) return
     const p = at(e), hit = snapAt(p.x, p.y, new Set([c.fromNode.id]))
-    if (hit) onConnect({ source: c.fromNode.id, sourceHandle: c.fromHandle?.id ?? null, target: hit.id, targetHandle: hit.side })
+    if (hit) onConnect({ source: c.fromNode.id, sourceHandle: c.fromHandle?.id ?? null, target: hit.id, targetHandle: hit.handle })
   }
 
   // An existing line's end, dragged somewhere else: onto a dot, near an edge (it snaps), or into empty space (it
@@ -194,7 +202,7 @@ function Editor() {
     const moved = fixed === 'source' ? 'target' : 'source'
     const other = moved === 'source' ? edge.target : edge.source
     const p = at(e), hit = snapAt(p.x, p.y, new Set([other]))
-    useApp.getState().moveEnd(edge.id, moved, hit ? { node: hit.id, side: hit.side } : rf.screenToFlowPosition(p))
+    useApp.getState().moveEnd(edge.id, moved, hit ? { node: hit.id, side: hit.handle } : rf.screenToFlowPosition(p))
   }
 
   // A group moves as one even when the drag starts on a member that was not selected yet: React Flow settles what
@@ -259,7 +267,7 @@ function Editor() {
             if (!node) continue
             const r = node.getBoundingClientRect()
             const hit = snapAt(r.left + r.width / 2, r.top + r.height / 2, new Set([pa, pb]))
-            if (hit) s.moveEnd(id, end, { node: hit.id, side: hit.side }, false)
+            if (hit) s.moveEnd(id, end, { node: hit.id, side: hit.handle }, false)
           }
         })
       }
@@ -279,14 +287,14 @@ function Editor() {
     if (!el || !e) return
     const r = el.getBoundingClientRect(), other = e.source === n.id ? e.target : e.source
     const hit = snapAt(r.left + r.width / 2, r.top + r.height / 2, new Set([n.id, other]))
-    if (hit) s.moveEnd(e.id, e.source === n.id ? 'source' : 'target', { node: hit.id, side: hit.side })
+    if (hit) s.moveEnd(e.id, e.source === n.id ? 'source' : 'target', { node: hit.id, side: hit.handle })
   }
 
   const fresh = async () => { const list = await api.list().catch(() => []); useApp.getState().load(newId('d'), uniqueName('Untitled', list), { nodes: [], edges: [] }); setDialog(false) }
   const open = async (id: string) => { const d = await api.get(id); useApp.getState().load(d.id, d.name, fromDoc(d), pagesFromDoc(d)); localStorage.setItem(LAST, d.id); setDialog(false); fit() }
 
   return (
-    <div className={`app ${inspOpen ? '' : 'insp-shut'}`} style={{ '--chat': chatOpen ? `${chatW}px` : '34px' } as React.CSSProperties}>
+    <div className={`app ${inspOpen ? '' : 'insp-shut'}`} style={{ '--chat': chatOpen ? `${chatW}px` : '34px', '--insp': inspOpen ? `${inspW}px` : '34px' } as React.CSSProperties}>
       <header className="top">
         <b className="brand">✦ Atelier</b>
         <input className="name" value={name} onChange={(e) => useApp.getState().rename(e.target.value)} aria-label="Diagram name" />
@@ -332,8 +340,8 @@ function Editor() {
       </header>
       <Chat open={chatOpen} toggle={toggleChat} width={chatW} resize={resizeChat} reset={() => resizeChat(CHAT_W, true)} />
       <main className="canvas" ref={box}>
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          onConnect={onConnect} onConnectEnd={onConnectEnd} connectionRadius={30} elevateNodesOnSelect={false}
+        <ReactFlow nodes={layered} edges={edges} nodeTypes={NODE_TYPES} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+          onConnect={onConnect} onConnectEnd={onConnectEnd} connectionRadius={SNAP} elevateNodesOnSelect={false}
           reconnectRadius={7} zoomOnDoubleClick={false} onEdgeDoubleClick={(_, e) => editLabel(e.id)} onReconnect={onReconnect} onReconnectStart={() => { reconnecting.current = true }} onReconnectEnd={onReconnectEnd} onNodeDragStop={onNodeDragStop} onNodeDragStart={onNodeDragStart} onNodeDrag={onNodeDrag} connectionMode={ConnectionMode.Loose} deleteKeyCode={['Backspace', 'Delete']}
           selectionOnDrag selectionMode={SelectionMode.Partial} panOnDrag={[1, 2]} panActivationKeyCode="Space" panOnScroll
           multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
@@ -377,7 +385,7 @@ function Editor() {
         )}
         {!nodes.length && <div className="empty">Ask the AI on the left, or add a card, a title or a box from the top.<br />Drag from a dot on a shape’s side to another shape to draw an arrow; double-click to edit words.<br />Drag on the canvas to select · Space + drag to move around</div>}
       </main>
-      <Inspector open={inspOpen} toggle={toggleInsp} />
+      <Inspector open={inspOpen} toggle={toggleInsp} width={inspW} resize={resizeInsp} reset={() => resizeInsp(INSP_W, true)} />
       {dialog && <OpenDialog close={() => setDialog(false)} open={open} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>

@@ -1,9 +1,11 @@
 // The four kinds of element on the canvas. Each one resizes from its corners when selected, has a connection
 // point on every side (drag from one to another to draw an arrow), and edits its words in place on double-click.
-import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react'
-import { useEffect, useRef } from 'react'
+import { Handle, NodeResizer, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { FormatBar, Rich, RichInline, formatKey, newLine } from './RichText'
 import { iconByName } from '../icons'
-import { fitToText } from '../fit'
+import { fitToText, growToContent } from '../fit'
+import { parseHandle } from '../snap'
 import { PALETTE, type El, type ElData } from '../model'
 import { useApp } from '../store'
 
@@ -11,6 +13,37 @@ import { useApp } from '../store'
 const JUSTIFY = { left: 'flex-start', center: 'center', right: 'flex-end' } as const
 
 const SIDES = [['t', Position.Top], ['r', Position.Right], ['b', Position.Bottom], ['l', Position.Left]] as const
+
+/** A text box being typed into, as tall as its words: every line shows, none scrolls out of sight. */
+function tall(t: HTMLTextAreaElement | null) {
+  if (!t) return
+  t.style.height = 'auto'
+  t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`    // the dashed border counts too
+}
+
+const POS = { t: Position.Top, r: Position.Right, b: Position.Bottom, l: Position.Left } as const
+
+/**
+ * The connection points lines are attached to away from the middle of a side (`t@0.82`): one per spot in use,
+ * placed exactly there, so the line, its grip and its arrowhead all meet the edge where the end was let go.
+ */
+function SpotHandles({ id }: { id: string }) {
+  const spots = useApp((s) => [...new Set(s.edges.flatMap((e) => [
+    e.source === id ? e.sourceHandle : null, e.target === id ? e.targetHandle : null,
+  ]).filter((h): h is string => !!h && h.includes('@')))].sort().join(' '))
+  // React Flow measures a node's connection points once; a point added later has to be announced, or a line
+  // attached to it is not drawn at all
+  const remeasure = useUpdateNodeInternals()
+  useEffect(() => { remeasure(id) }, [spots, id, remeasure])
+  if (!spots) return null
+  return <>{spots.split(' ').map((h) => {
+    const p = parseHandle(h)
+    if (!p) return null
+    const along = `${p.at * 100}%`
+    return <Handle key={h} id={h} type="source" position={POS[p.side]} className="hd hd-spot"
+      style={p.side === 't' || p.side === 'b' ? { left: along } : { top: along }} />
+  })}</>
+}
 
 function Frame({ id, selected, min, children }: { id: string; selected: boolean; min: [number, number]; children: React.ReactNode }) {
   const checkpoint = useApp((s) => s.checkpoint)
@@ -21,43 +54,42 @@ function Frame({ id, selected, min, children }: { id: string; selected: boolean;
       <NodeResizer isVisible={selected && !locked} minWidth={min[0]} minHeight={min[1]} onResizeStart={checkpoint}
         lineClassName="rz-line" handleClassName="rz-handle" />
       {SIDES.map(([k, p]) => <Handle key={k} id={k} type="source" position={p} className="hd" />)}
+      <SpotHandles id={id} />
       <div className="el-in" onDoubleClick={() => { if (!locked) useApp.getState().setEditing(id) }}>{children}</div>
     </>
   )
 }
 
-// A word or two, edited in place. Enter keeps it, in every field, as does Escape or leaving the field.
-// Shift+Enter makes a new line where one is allowed. (Enter used to type a newline in a multi-line field,
-// and since editing starts with the words selected, that newline replaced them: Enter deleted the text.)
+// Words, edited in place. Enter keeps them, in every field, as does Escape or leaving the field. A new line is
+// Shift+Enter, Ctrl+Enter or Alt+Enter, in every field: whichever a hand reaches for. (Enter used to type a
+// newline, and since editing starts with the words selected, that newline replaced them: Enter deleted the text.)
 function Field({ id, k, value, className, multiline, placeholder }: { id: string; k: keyof ElData; value?: string; className: string; multiline?: boolean; placeholder?: string }) {
   const editing = useApp((s) => s.editing === id)
   const ref = useRef<HTMLTextAreaElement>(null)
+  const [box, setBox] = useState<HTMLTextAreaElement | null>(null)
   useEffect(() => { if (editing && ref.current && ref.current.dataset.first === '1') { ref.current.focus(); ref.current.select() } }, [editing])
+  useLayoutEffect(() => { if (editing) { tall(ref.current); growToContent(id) } }, [editing, value, id])
   if (!editing) return value ? <div className={className}><Rich s={value} /></div> : null
-  return (
-    <textarea ref={ref} data-first={k === 'title' || k === 'text' ? '1' : '0'} className={`${className} edit nodrag nowheel`} value={value ?? ''} placeholder={placeholder}
-      rows={multiline ? 2 : 1}
+  const set = (v: string) => { useApp.getState().update(id, { [k]: v }); fitToText(id, true) }
+  return (<>
+    <FormatBar box={box} onEdit={set} />
+    <textarea ref={(t) => { ref.current = t; if (t !== box) setBox(t) }} data-first={k === 'title' || k === 'text' ? '1' : '0'} className={`${className} edit nodrag nowheel`} value={value ?? ''} placeholder={placeholder}
+      rows={multiline ? 2 : 1} title="Enter keeps it · Shift+Enter for a new line"
       onChange={(e) => { useApp.getState().update(id, { [k]: e.target.value }); fitToText(id, true) }}
       onKeyDown={(e) => {
         e.stopPropagation()
-        if (e.key === 'Enter' && e.shiftKey && !multiline) { e.preventDefault(); return }
-        if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey)) { e.preventDefault(); useApp.getState().setEditing(null) }
+        if (formatKey(e, set)) return
+        if (e.key === 'Enter' && (e.shiftKey || e.ctrlKey || e.altKey)) {
+          // a new line where the caret is (Ctrl+Enter and Alt+Enter type nothing in a text box by themselves)
+          // on a bullet line the next line is a bullet too; an empty bullet ends the list
+          e.preventDefault()
+          set(newLine(e.currentTarget))
+          return
+        }
+        if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); useApp.getState().setEditing(null) }
       }}
       onBlur={(e) => { if (!e.relatedTarget?.closest?.(`[data-id="${id}"]`)) useApp.getState().setEditing(null) }} />
-  )
-}
-
-/** `**bold**` and `*italic*`, nothing else. The raw text is what you edit, so what you type is stored. */
-function Rich({ s }: { s: string }) {
-  return (
-    <>
-      {s.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((p, i) => {
-        if (p.length > 4 && p.startsWith('**') && p.endsWith('**')) return <strong key={i}>{p.slice(2, -2)}</strong>
-        if (p.length > 2 && p.startsWith('*') && p.endsWith('*')) return <em key={i}>{p.slice(1, -1)}</em>
-        return <span key={i}>{p}</span>
-      })}
-    </>
-  )
+  </>)
 }
 
 /**
@@ -72,6 +104,7 @@ function Lines({ id, value, onChange, placeholder, children }: {
   const editing = useApp((s) => s.editing === id)
   const ref = useRef<HTMLTextAreaElement>(null)
   useEffect(() => { if (editing && ref.current) { ref.current.focus(); ref.current.select() } }, [editing])
+  useLayoutEffect(() => { if (editing) { tall(ref.current); growToContent(id) } }, [editing, value, id])
   if (!editing) return <>{children}</>
   return (
     <textarea ref={ref} className="lines edit nodrag nowheel" value={value} placeholder={placeholder}
@@ -88,7 +121,7 @@ export function List({ id, data, selected }: NodeProps<El>) {
       <div className={`lst txt-${data.size ?? 'body'}`} style={{ color: PALETTE[data.color].fg, ...(data.fs ? { fontSize: data.fs } : {}) }}>
         <Lines id={id} value={items.join('\n')} placeholder={'One item per line'}
           onChange={(v) => useApp.getState().update(id, { items: v.split('\n') })}>
-          <ul>{items.map((it, i) => <li key={i}><Rich s={it} /></li>)}</ul>
+          <ul>{items.map((it, i) => <li key={i}><RichInline s={it} /></li>)}</ul>
         </Lines>
       </div>
     </Frame>
@@ -107,7 +140,7 @@ export function Table({ id, data, selected }: NodeProps<El>) {
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i} className={head && i === 0 ? 'hd' : ''}>
-                  {r.map((c, j) => <td key={j}><Rich s={c} /></td>)}
+                  {r.map((c, j) => <td key={j}><RichInline s={c} /></td>)}
                 </tr>
               ))}
             </tbody>

@@ -15,13 +15,14 @@ const MIN: Partial<Record<Kind, [number, number]>> = { card: [120, 60], text: [4
  * How big the element's content wants to be. A hidden copy of it is laid out inside the same node, so it gets
  * the same fonts and rules, but with nothing holding its width.
  */
-function natural(id: string): { w: number; h: number } | null {
+function natural(id: string, atWidth?: number): { w: number; h: number } | null {
   const node = document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
   const inner = node?.querySelector<HTMLElement>('.el-in > *')
   if (!node || !inner) return null
   const copy = inner.cloneNode(true) as HTMLElement
+  // free, its natural width (up to MAX_W); at a given width, how tall the words are when they wrap at it
   Object.assign(copy.style, { position: 'absolute', left: '0', top: '0', visibility: 'hidden', pointerEvents: 'none',
-    width: 'max-content', maxWidth: `${MAX_W}px`, height: 'auto' })
+    width: atWidth ? `${atWidth}px` : 'max-content', maxWidth: atWidth ? 'none' : `${MAX_W}px`, height: 'auto' })
   // a field being edited is a textarea, which has no natural width: measure its words instead
   copy.querySelectorAll('textarea').forEach((t) => {
     const d = document.createElement('div')
@@ -37,22 +38,65 @@ function natural(id: string): { w: number; h: number } | null {
   return size
 }
 
-/** Fit an element to its words. `grow` only ever makes it bigger: what typing does. */
-export function fitToText(id: string, grow = false) {
+/**
+ * Fit an element to its words. `grow` only ever makes it bigger: what typing does. `keepWidth` grows it taller
+ * only, wrapping at the width it has: for words that changed elsewhere, so a card sized narrow stays narrow.
+ */
+export function fitToText(id: string, grow = false, keepWidth = false) {
   requestAnimationFrame(() => {
     const s = useApp.getState()
     const n = s.nodes.find((x) => x.id === id)
     if (!n || !HUGS.includes(n.type as Kind)) return
-    const want = natural(id)
+    const want = natural(id, keepWidth ? n.width ?? undefined : undefined)
     if (!want) return
     const [mw, mh] = MIN[n.type as Kind] ?? [0, 0]
     const w0 = n.width ?? 0, h0 = n.height ?? 0
-    let w = Math.max(mw, want.w), h = Math.max(mh, want.h)
+    // keeping its width means exactly that: only the height moves
+    let w = keepWidth && w0 ? w0 : Math.max(mw, want.w), h = Math.max(mh, want.h)
     if (grow) { w = Math.max(w0, w); h = Math.max(h0, h) }
     if (w === w0 && h === h0) return
     useApp.setState({ nodes: s.nodes.map((x) => (x.id === id ? { ...x, width: w, height: h } : x)), saved: false })
   })
 }
+
+/**
+ * While a field is open on an element: grow the element (taller only) until what is inside it fits, measured
+ * from the real text box, which is a little taller than the same words drawn as text.
+ */
+export function growToContent(id: string) {
+  requestAnimationFrame(() => {
+    const node = document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
+    const inner = node?.querySelector<HTMLElement>('.el-in > *')
+    if (!node || !inner) return
+    // the full height of what is inside, top to bottom: centred words spill out above as well as below, and
+    // scrollHeight only counts below. Measured on screen, then back to canvas pixels.
+    const scale = node.getBoundingClientRect().height / node.offsetHeight || 1
+    const kids = [...inner.children].map((k) => k.getBoundingClientRect())
+    if (!kids.length) return
+    const box = inner.getBoundingClientRect()
+    const pad = inner.offsetHeight - inner.clientHeight + (parseFloat(getComputedStyle(inner).paddingTop) + parseFloat(getComputedStyle(inner).paddingBottom))
+    const used = (Math.max(...kids.map((k) => k.bottom)) - Math.min(...kids.map((k) => k.top))) / scale + pad
+    const over = Math.max(inner.scrollHeight - inner.clientHeight, used - box.height / scale)
+    if (over <= 1) return
+    useApp.setState((s) => ({ nodes: s.nodes.map((n) => (n.id === id ? { ...n, height: (n.height ?? node.offsetHeight) + over + 2 } : n)), saved: false }))
+  })
+}
+
+// Words that changed anywhere (typed on the card, in the panel, by the AI, by an import) or a diagram just
+// opened: each changed element grows to fit its words, so nothing is ever cut off. Growing only: a size set by
+// hand is never shrunk.
+let lastData = new Map<string, unknown>()
+useApp.subscribe((s) => {
+  const changed: string[] = []
+  const now = new Map<string, unknown>()
+  for (const n of s.nodes) {
+    now.set(n.id, n.data)
+    // the element being typed into fits as you type (the field does it); everything else, here
+    if (lastData.get(n.id) !== n.data && n.id !== s.editing) changed.push(n.id)
+  }
+  lastData = now
+  for (const id of changed) fitToText(id, true, true)
+})
 
 // A field being typed into is a textarea, and the words lay out a little differently once editing ends and
 // they are drawn as text again. Fit once more at that moment, so what you leave is never cut off.

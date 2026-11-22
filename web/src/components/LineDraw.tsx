@@ -16,11 +16,11 @@ function sideSegment(s: Snapped, o: DOMRect): [Pt, Pt] {
     : s.side === 'l' ? [{ x: L, y: T }, { x: L, y: B }] : [{ x: R, y: T }, { x: R, y: B }]
 }
 
-/** Where a snapped end touches its element: the middle of that side. That is where its connection dot is. */
+/** Where a snapped end touches its element: the spot along that side where it will attach. */
 function sideMiddle(s: Snapped): Pt {
-  const r = s.rect
-  return s.side === 't' ? { x: r.left + r.width / 2, y: r.top } : s.side === 'b' ? { x: r.left + r.width / 2, y: r.bottom }
-    : s.side === 'l' ? { x: r.left, y: r.top + r.height / 2 } : { x: r.right, y: r.top + r.height / 2 }
+  const r = s.rect, at = s.handle === s.side ? 0.5 : s.at
+  return s.side === 't' ? { x: r.left + r.width * at, y: r.top } : s.side === 'b' ? { x: r.left + r.width * at, y: r.bottom }
+    : s.side === 'l' ? { x: r.left, y: r.top + r.height * at } : { x: r.right, y: r.top + r.height * at }
 }
 
 export function LineDraw({ look, label, done }: { look: Look; label: string; done: () => void }) {
@@ -36,7 +36,7 @@ export function LineDraw({ look, label, done }: { look: Look; label: string; don
   }, [done])
 
   const end = (p: { at: Pt; snap: Snapped | null }): End =>
-    p.snap ? { node: p.snap.id, side: p.snap.side } : rf.screenToFlowPosition(p.at)
+    p.snap ? { node: p.snap.id, side: p.snap.handle } : rf.screenToFlowPosition(p.at)
 
   const down = (e: React.PointerEvent) => {
     if (e.button !== 0) return
@@ -53,9 +53,11 @@ export function LineDraw({ look, label, done }: { look: Look; label: string; don
   const up = (e: React.PointerEvent) => {
     if (!from) return
     const at = { x: e.clientX, y: e.clientY }
-    const last = { at, snap: snapAt(at.x, at.y, new Set(from.snap ? [from.snap.id] : [])) }
+    // each end, facing the other: dropped in the middle of a card, the line meets the side that looks at it
+    const last = { at, snap: snapAt(at.x, at.y, new Set(from.snap ? [from.snap.id] : []), from.at) }
+    const first = { at: from.at, snap: snapAt(from.at.x, from.at.y, new Set(last.snap ? [last.snap.id] : []), at) }
     // a click, not a drag: nothing to draw
-    if (Math.hypot(at.x - from.at.x, at.y - from.at.y) > 6) useApp.getState().addLine(end(from), end(last), look)
+    if (Math.hypot(at.x - from.at.x, at.y - from.at.y) > 6) useApp.getState().addLine(end(first), end(last), look)
     setFrom(null); setTo(null); done()
   }
 

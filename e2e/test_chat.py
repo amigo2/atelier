@@ -23,8 +23,10 @@ def test_draw_with_the_ai(page, base_url, data, errors):
     expect(page.locator(".react-flow__edge")).to_have_count(3)
     expect(page.locator(".msg.note").last).to_contain_text("added card Question")
     expect(page.locator(".msg.ai").last).to_contain_text("Drew 4 steps")
-    ys = {round(cards.nth(i).bounding_box()["y"]) for i in range(4)}
-    assert len(ys) == 1                                                          # one row
+    # one row. Read all four at the same instant: the view is still gliding to fit them, and measuring one card
+    # at a time used to catch it mid-glide and see a row 2px out of line.
+    ys = set(cards.evaluate_all("ns => ns.map(n => Math.round(n.getBoundingClientRect().top))"))
+    assert len(ys) == 1
 
     # select one, "make this amber": only it changes
     cards.nth(2).click()

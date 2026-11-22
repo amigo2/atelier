@@ -1,0 +1,21 @@
+# Build context: source only. Diagrams, images and anything built or installed locally stay out.
+.git
+data
+exports
+e2e/artifacts
+.DS_Store
+
+node_modules
+web/node_modules
+web/dist
+*.tsbuildinfo
+
+.venv
+api/.venv
+__pycache__
+*.pyc
+.pytest_cache
+
+# Keys never live in the repo, and never in the image either.
+*.env
+.env*

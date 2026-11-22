@@ -11,7 +11,7 @@ import json
 import logging
 import re
 
-from . import llm
+from . import ascii_import, llm
 
 log = logging.getLogger("atelier.assist")
 ROUNDS = 12   # model turns per message: tool calls, then the answer
@@ -25,7 +25,7 @@ TEXT_H = {"title": 44, "heading": 32, "label": 24, "body": 60}
 CHAR_W = {"title": 15.5, "heading": 10.5, "label": 8.6, "body": 7.6}
 ALIGNS = ["left", "center", "right"]
 SHAPES = ["straight", "curved", "elbow"]
-ENDS = ["none", "end", "both"]
+ENDS = ["none", "start", "end", "both"]
 FIELDS = ("title", "sub", "emoji", "text", "size", "align", "color", "x", "y", "w", "h")
 
 _place = {"type": "object", "properties": {
@@ -72,7 +72,7 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {
             "from": {"type": "string"}, "to": {"type": "string"}, "label": {"type": "string", "description": "A few words, e.g. HTTPS 443"},
             "shape": {"type": "string", "enum": SHAPES, "description": "default elbow"},
-            "ends": {"type": "string", "enum": ENDS, "description": "arrowheads: none (a plain line), end (default) or both"},
+            "ends": {"type": "string", "enum": ENDS, "description": "arrowheads: none (a plain line), start, end (default) or both"},
             "dash": {"type": "boolean", "description": "a dashed line, e.g. for something optional or async"},
             "color": {"type": "string", "enum": COLORS}},
             "required": ["from", "to"]}}},
@@ -352,6 +352,11 @@ def assist(body: dict) -> dict:
     chat = [m for m in body.get("chat") or [] if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str)][-12:]
     if not text:
         return {"reply": "Say what to draw or change.", "doc": doc, "steps": [], "live": llm.live()}
+    # A box drawing pasted in is read, not interpreted: no model, the same drawing always gives the same diagram.
+    if ascii_import.looks_like(text):
+        cv = Canvas(doc)
+        reply = ascii_import.draw(cv, text)
+        return {"reply": reply, "doc": cv.doc, "steps": cv.steps, "live": llm.live()}
     if llm.live():
         try:
             return {**_live(doc, selected, chat, text), "live": True}
