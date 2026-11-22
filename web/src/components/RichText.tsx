@@ -1,40 +1,41 @@
 // Richer words, still plain text underneath. What you type is what is stored; a little markup says the rest:
 //
-//   **bold**   *italic*   ~~struck through~~   {red:coloured words}   and a line starting "* " or "- " is a bullet.
+//   **bold**   *italic*   ~~struck~~   {red:coloured}   {large:bigger}   {red,large,b:combined}   "* " bullets
+//
+// (the reading and writing itself is in richtext/markup.ts)
 //
 // Plain text keeps everything else working: the PDF keeps text as text, the AI reads and writes it, an import
 // produces it. Select words while editing and a small bar puts the markup in for you.
 import { useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { COLORS, PALETTE, type Color } from '../model'
+import { parse, parseInline, type Run, type Size } from '../richtext/markup'
 
-const INLINE = new RegExp(String.raw`(\*\*[^*]+?\*\*|~~[^~]+?~~|\{(?:${COLORS.join('|')}):[^{}]+\}|\*[^*\s][^*]*?\*)`, 'g')
-const COLOURED = new RegExp(String.raw`^\{(${COLORS.join('|')}):([^{}]+)\}$`)
 const BULLET = /^(\s*)[*\-•] (.*)$/
 
-/** Bold, italic, struck through and colour inside one line. Colour can hold the others: {red:**this**}. */
-export function RichInline({ s }: { s: string }) {
-  return <>{s.split(INLINE).map((p, i) => {
-    if (p.length > 4 && p.startsWith('**') && p.endsWith('**')) return <strong key={i}><RichInline s={p.slice(2, -2)} /></strong>
-    if (p.length > 4 && p.startsWith('~~') && p.endsWith('~~')) return <s key={i}><RichInline s={p.slice(2, -2)} /></s>
-    const c = COLOURED.exec(p)
-    if (c) return <span key={i} style={{ color: PALETTE[c[1] as Color].fg }}><RichInline s={c[2]} /></span>
-    if (p.length > 2 && p.startsWith('*') && p.endsWith('*') && p[1] !== ' ') return <em key={i}><RichInline s={p.slice(1, -1)} /></em>
-    return p ? <span key={i}>{p}</span> : null
-  })}</>
+/** How much bigger or smaller each named size is than the element's own text. */
+export const SIZE_EM: Record<Size, number> = { small: 0.82, large: 1.3, huge: 1.7 }
+
+function RunView({ r }: { r: Run }) {
+  const m = r.marks
+  let el: React.ReactNode = r.text
+  if (m.s) el = <s>{el}</s>
+  if (m.i) el = <em>{el}</em>
+  if (m.b) el = <strong>{el}</strong>
+  if (m.color || m.size) el = <span style={{ ...(m.color ? { color: PALETTE[m.color].fg } : {}), ...(m.size ? { fontSize: `${SIZE_EM[m.size]}em` } : {}) }}>{el}</span>
+  return <>{el}</>
 }
 
-/** A block of words: one line each, and the lines that start "* " or "- " as bullets with a hanging indent. */
+/** Styled words inside one line (a list item, a table cell). Read by the same reader as everything else. */
+export function RichInline({ s }: { s: string }) {
+  return <>{parseInline(s).map((r, i) => <RunView key={i} r={r} />)}</>
+}
+
+/** A block of words: one line each, and bullet lines as bullets with a hanging indent. */
 export function Rich({ s }: { s: string }) {
-  return <>{s.split('\n').map((line, i) => {
-    const b = BULLET.exec(line)
-    if (b) return (
-      <div key={i} className="rich-b" style={{ marginLeft: `${b[1].length * 0.5}em` }}>
-        <span className="rich-dot">•</span><span><RichInline s={b[2]} /></span>
-      </div>
-    )
-    return <div key={i} className="rich-l">{line ? <RichInline s={line} /> : '​'}</div>
-  })}</>
+  return <>{parse(s).map((b, i) => b.bullet
+    ? <div key={i} className="rich-b"><span className="rich-dot">•</span><span>{b.runs.map((r, j) => <RunView key={j} r={r} />)}</span></div>
+    : <div key={i} className="rich-l">{b.runs.length ? b.runs.map((r, j) => <RunView key={j} r={r} />) : '\u200b'}</div>)}</>
 }
 
 // --- typing

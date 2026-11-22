@@ -51,11 +51,21 @@ export function fitToText(id: string, grow = false, keepWidth = false) {
     if (!want) return
     const [mw, mh] = MIN[n.type as Kind] ?? [0, 0]
     const w0 = n.width ?? 0, h0 = n.height ?? 0
+    // An element sized by Atelier (a new one, or "Fit to words") follows its words both ways. One sized by hand
+    // only grows, so its words are never cut off but the size chosen is never taken away. (Grow-only for
+    // everything let a paste into a narrow element balloon it: tall while narrow, then wide, and kept both.)
+    const auto = !!n.data.auto || !grow
     // keeping its width means exactly that: only the height moves
     let w = keepWidth && w0 ? w0 : Math.max(mw, want.w), h = Math.max(mh, want.h)
-    if (grow) { w = Math.max(w0, w); h = Math.max(h0, h) }
-    if (w === w0 && h === h0) return
-    useApp.setState({ nodes: s.nodes.map((x) => (x.id === id ? { ...x, width: w, height: h } : x)), saved: false })
+    if (grow) w = Math.max(w0, w)
+    if (auto) {
+      // the height its words need at the width it ends up with, not at their natural width
+      const at = w !== want.w ? natural(id, w) : want
+      h = Math.max(mh, at?.h ?? h)
+    } else if (grow) h = Math.max(h0, h)
+    if (w === w0 && h === h0 && auto === !!n.data.auto) return
+    useApp.setState({ nodes: s.nodes.map((x) => (x.id === id
+      ? { ...x, width: w, height: h, data: auto && !x.data.auto ? { ...x.data, auto: true } : x.data } : x)), saved: false })
   })
 }
 

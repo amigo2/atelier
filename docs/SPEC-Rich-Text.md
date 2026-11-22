@@ -1,7 +1,21 @@
 # Spec: a real rich-text editor in the details panel
 
-Status: **draft, waiting for approval.** No code until it is approved. (The details panel is already
-resizable, so there is room to write in it.)
+Status: **approved 2026-11-22. Phase 1 built.** What building it changed or measured:
+
+- **Combinations use the braced form.** `***x***` (bold and italic) cannot be read back reliably, so
+  a single mark keeps its short form (`**b**`, `*i*`, `~~s~~`) and anything combined, or touching
+  another styled run, is written `{red,large,b,i:words}`. Literal markup characters are escaped
+  with `\`.
+- One reader and one writer: `web/src/richtext/markup.ts`. The canvas renderer, the panel editor
+  and the conversion to TipTap's document (`doc.ts`) all go through it.
+- **Tests:** 35 unit tests (`npm test` in `web/`). Existing text comes back byte for byte, edited
+  text survives a second round trip unchanged, and the cases cover the editor's document.
+- **TipTap 3.35.0, MIT.** Measured cost: the bundle went from 1,070 KB to 1,479 KB, which is 301 KB
+  to 431 KB gzipped, so about +130 KB delivered. That is more than the 100 KB estimate. Loading the
+  editor only when the panel first shows text would win it back if it matters.
+- Sizes: small 0.82×, large 1.3×, huge 1.7× the element's own size.
+- Not built yet: e2e tests for the panel editor (it was checked with a scripted browser run), and
+  phase 2.
 
 ## Goal
 

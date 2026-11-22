@@ -37,6 +37,7 @@ export type ElData = {
   align?: Align // card, text: where the words sit; left when absent
   locked?: boolean // any kind: can be selected, but not moved, resized, edited or deleted
   group?: string // elements with the same group id are selected, moved, duplicated and deleted together
+  auto?: boolean // its height follows its words, both ways; false or absent once sized by hand (it then only grows)
   items?: string[] // list: one line each
   rows?: string[][] // table: rows of cells, the first one the header unless head is false
   head?: boolean // table

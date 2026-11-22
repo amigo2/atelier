@@ -166,7 +166,8 @@ function Editor() {
       const mod = e.metaKey || e.ctrlKey, s = useApp.getState()
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow().then(() => setToast(`Saved “${useApp.getState().name}”`)); return }
       if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); setDialog(true); return }
-      if ((e.target as HTMLElement).closest('input, textarea, select')) return
+      // typing in a field, or in the rich editor, is not a command for the canvas (⌘Z there undoes the typing)
+      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) s.redo(); else s.undo() }
       else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); s.redo() }
       else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); s.duplicate() }

@@ -1,31 +1,17 @@
 // The right-hand panel: the selected element's colour, emoji, words and size; an arrow's label; or what to do.
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { api } from '../api'
 import { ICON_COUNT, findIcons, iconByName } from '../icons'
 import { ALIGNS, COLORS, LINE_ENDS, LINE_SHAPES, PALETTE, type Look, type TextSize } from '../model'
 import { useApp } from '../store'
 import { Grip } from './Grip'
+import { fitToText } from '../fit'
+
+// the kinds whose height can follow their words
+const FITS = ['card', 'text', 'pill', 'list', 'table']
+import { RichEditor } from '../richtext/RichEditor'
 
 const SIZES: TextSize[] = ['title', 'heading', 'label', 'body']
-
-/** A text box as tall as what is in it: a five-line description shows five lines, not the first two. */
-function GrowingText(props: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { value: string; min?: number }) {
-  const { min = 1, ...rest } = props
-  const ref = useRef<HTMLTextAreaElement>(null)
-  useLayoutEffect(() => {
-    const t = ref.current
-    if (!t) return
-    const fit = () => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight + 2}px` }
-    fit()
-    // and again whenever its width changes: the panel settles after the first measure, and a long line that
-    // wraps once more would otherwise fall off the bottom
-    let w = t.clientWidth
-    const ro = new ResizeObserver(() => { if (t.clientWidth !== w) { w = t.clientWidth; fit() } })
-    ro.observe(t)
-    return () => ro.disconnect()
-  }, [props.value])
-  return <textarea ref={ref} rows={min} {...rest} style={{ resize: 'none', overflow: 'hidden', ...rest.style }} />
-}
 
 /** Search the bundled set by name and pick one. No network, one stroke weight, one licence. */
 function IconPicker({ value, onPick }: { value?: string; onPick: (name: string | undefined) => void }) {
@@ -133,18 +119,18 @@ function Details() {
         {n.type === 'card' && (<>
           <label htmlFor="emoji">Emoji <span className="faint">· wins over the icon</span></label>
           <input id="emoji" value={d.emoji ?? ''} placeholder="e.g. 🔍" onFocus={s.checkpoint} onChange={(e) => s.update(n.id, { emoji: e.target.value })} />
-          <label htmlFor="title">Title</label>
-          <input id="title" value={d.title ?? ''} onFocus={s.checkpoint} onChange={(e) => s.update(n.id, { title: e.target.value })} />
-          <label htmlFor="sub">Line under it</label>
-          <GrowingText id="sub" min={2} value={d.sub ?? ''} onFocus={s.checkpoint} onChange={(e) => s.update(n.id, { sub: e.target.value })} />
+          <label>Title</label>
+          <RichEditor key={`${n.id}-title`} label="Title" minRows={1} value={d.title ?? ''} onFocus={s.checkpoint} onChange={(v) => s.update(n.id, { title: v })} />
+          <label>Line under it</label>
+          <RichEditor key={`${n.id}-sub`} label="Line under it" value={d.sub ?? ''} onFocus={s.checkpoint} onChange={(v) => s.update(n.id, { sub: v })} />
         </>)}
         {n.type === 'box' && (<>
-          <label htmlFor="title">Label</label>
-          <input id="title" value={d.title ?? ''} onFocus={s.checkpoint} onChange={(e) => s.update(n.id, { title: e.target.value })} />
+          <label>Label</label>
+          <RichEditor key={`${n.id}-title`} label="Label" minRows={1} value={d.title ?? ''} onFocus={s.checkpoint} onChange={(v) => s.update(n.id, { title: v })} />
         </>)}
         {(n.type === 'text' || n.type === 'pill') && (<>
-          <label htmlFor="text">Words</label>
-          <GrowingText id="text" min={n.type === 'text' ? 3 : 1} value={d.text ?? ''} onFocus={s.checkpoint} onChange={(e) => s.update(n.id, { text: e.target.value })} />
+          <label>Words</label>
+          <RichEditor key={`${n.id}-text`} label="Words" minRows={n.type === 'text' ? 3 : 1} value={d.text ?? ''} onFocus={s.checkpoint} onChange={(v) => s.update(n.id, { text: v })} />
         </>)}
         {(n.type === 'card' || n.type === 'text') && (<>
           <label>Align</label>
@@ -158,7 +144,11 @@ function Details() {
           <div className="seg">{SIZES.map((z) => <button key={z} className={d.size === z ? 'on' : ''} onClick={() => set({ size: z })}>{z}</button>)}</div>
         </>)}
         <label>Size on the canvas</label>
-        <p className="faint">{Math.round(n.width ?? 0)} × {Math.round(n.height ?? 0)}{d.locked ? ': locked.' : ': drag a corner to resize.'}</p>
+        <p className="faint">{Math.round(n.width ?? 0)} × {Math.round(n.height ?? 0)}{d.locked ? ': locked.' : d.auto ? ': its height follows its words.' : ': drag a corner to resize.'}</p>
+        {FITS.includes(n.type!) && !d.auto && !d.locked && (
+          <button className="wide" style={{ marginTop: 0, marginBottom: 8 }} onClick={() => { s.checkpoint(); fitToText(n.id) }}
+            title="Make it exactly as tall as its words, and keep it that way as they change">Fit to words</button>
+        )}
         <button className={`toggle wide ${d.locked ? 'on' : ''}`} aria-pressed={!!d.locked} onClick={() => set({ locked: !d.locked })}
           title={d.locked ? 'Unlock: move, resize, edit and delete it again' : 'Lock: it stays put, and cannot be resized, edited or deleted'}>
           {d.locked ? '🔒 Locked · unlock' : '🔓 Lock'}</button>

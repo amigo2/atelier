@@ -51,7 +51,7 @@ function Frame({ id, selected, min, children }: { id: string; selected: boolean;
   return (
     <>
       {locked && selected && <span className="lock-badge" title="Locked: unlock it in the panel on the right">🔒</span>}
-      <NodeResizer isVisible={selected && !locked} minWidth={min[0]} minHeight={min[1]} onResizeStart={checkpoint}
+      <NodeResizer isVisible={selected && !locked} minWidth={min[0]} minHeight={min[1]} onResizeStart={() => { checkpoint(); useApp.getState().update(id, { auto: false }) }}
         lineClassName="rz-line" handleClassName="rz-handle" />
       {SIDES.map(([k, p]) => <Handle key={k} id={k} type="source" position={p} className="hd" />)}
       <SpotHandles id={id} />
