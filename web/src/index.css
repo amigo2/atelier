@@ -311,3 +311,7 @@ body.dragging-line, body.dragging-line * { cursor: grabbing !important; user-sel
 .rte-text p { margin: 0; }
 .rte-text ul { margin: 0; padding-left: 1.2em; }
 .rte-text li p { margin: 0; }
+
+/* a tool picked, waiting for a click on the canvas */
+.place-tool { position: absolute; inset: 0; z-index: 8; cursor: crosshair; }
+.place-tool .hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: var(--ink); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; pointer-events: none; }

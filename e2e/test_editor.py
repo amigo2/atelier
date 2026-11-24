@@ -8,7 +8,13 @@ NODE = ".react-flow__node"
 
 
 def add(page, label):
+    """Pick a tool, then click in the middle of the canvas to put it there (as a person does); Esc closes the
+    words, which open for typing on anything made of them."""
     page.locator(".tools button", has_text=label).first.click()
+    box = page.locator("main.canvas").bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    if page.locator("textarea.edit").count():
+        page.keyboard.press("Escape")
 
 
 def test_draw_by_hand(page, base_url, data, errors):

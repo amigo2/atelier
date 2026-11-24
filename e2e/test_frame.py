@@ -12,11 +12,21 @@ def png_size(path):
     return struct.unpack(">II", head[16:24])
 
 
+def place(page, label):
+    """Pick a tool, then click in the middle of the canvas to put it there (as a person does); Esc closes the
+    words, which open for typing on anything made of them."""
+    page.locator(".tools button", has_text=label).first.click()
+    box = page.locator("main.canvas").bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    if page.locator("textarea.edit").count():
+        page.keyboard.press("Escape")
+
+
 def test_export_frame(page, base_url, data):
     page.set_viewport_size({"width": 1500, "height": 900})
     page.goto(base_url + "/")
     page.get_by_role("button", name="New").click()
-    page.locator(".tools button", has_text="Card").first.click()
+    place(page, "Card")
     expect(page.locator(".xframe")).to_have_count(0)
     expect(page.locator(".react-flow__background")).to_have_count(2)            # the soft grid: minor and major lines
 

@@ -4,7 +4,7 @@ import { Handle, NodeResizer, Position, useUpdateNodeInternals, type NodeProps }
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { FormatBar, Rich, RichInline, formatKey, newLine } from './RichText'
 import { iconByName } from '../icons'
-import { fitToText, growToContent } from '../fit'
+import { fitToText } from '../fit'
 import { parseHandle } from '../snap'
 import { PALETTE, type El, type ElData } from '../model'
 import { useApp } from '../store'
@@ -19,6 +19,15 @@ function tall(t: HTMLTextAreaElement | null) {
   if (!t) return
   t.style.height = 'auto'
   t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`    // the dashed border counts too
+}
+
+/** Re-size a text box whenever its width changes. Returns the clean-up. */
+function watchWidth(t: HTMLTextAreaElement | null) {
+  if (!t) return
+  let w = t.clientWidth
+  const ro = new ResizeObserver(() => { if (t.clientWidth !== w) { w = t.clientWidth; tall(t) } })
+  ro.observe(t)
+  return () => ro.disconnect()
 }
 
 const POS = { t: Position.Top, r: Position.Right, b: Position.Bottom, l: Position.Left } as const
@@ -63,18 +72,23 @@ function Frame({ id, selected, min, children }: { id: string; selected: boolean;
 // Words, edited in place. Enter keeps them, in every field, as does Escape or leaving the field. A new line is
 // Shift+Enter, Ctrl+Enter or Alt+Enter, in every field: whichever a hand reaches for. (Enter used to type a
 // newline, and since editing starts with the words selected, that newline replaced them: Enter deleted the text.)
-function Field({ id, k, value, className, multiline, placeholder }: { id: string; k: keyof ElData; value?: string; className: string; multiline?: boolean; placeholder?: string }) {
+function Field({ id, k, value, className, placeholder }: { id: string; k: keyof ElData; value?: string; className: string; multiline?: boolean; placeholder?: string }) {
   const editing = useApp((s) => s.editing === id)
   const ref = useRef<HTMLTextAreaElement>(null)
   const [box, setBox] = useState<HTMLTextAreaElement | null>(null)
   useEffect(() => { if (editing && ref.current && ref.current.dataset.first === '1') { ref.current.focus(); ref.current.select() } }, [editing])
-  useLayoutEffect(() => { if (editing) { tall(ref.current); growToContent(id) } }, [editing, value, id])
+  // as tall as its words; the element itself is fitted from a measured copy (fit.ts), never from this box,
+  // which is still at the old width in the instant after a paste
+  useLayoutEffect(() => { if (editing) tall(ref.current) }, [editing, value])
+  // and again when the box's width changes: the element widens a moment after the words do, and a line that
+  // wrapped at the old width would leave the box a line too tall
+  useLayoutEffect(() => watchWidth(editing ? ref.current : null), [editing])
   if (!editing) return value ? <div className={className}><Rich s={value} /></div> : null
   const set = (v: string) => { useApp.getState().update(id, { [k]: v }); fitToText(id, true) }
   return (<>
     <FormatBar box={box} onEdit={set} />
     <textarea ref={(t) => { ref.current = t; if (t !== box) setBox(t) }} data-first={k === 'title' || k === 'text' ? '1' : '0'} className={`${className} edit nodrag nowheel`} value={value ?? ''} placeholder={placeholder}
-      rows={multiline ? 2 : 1} title="Enter keeps it · Shift+Enter for a new line"
+      rows={1} title="Enter keeps it · Shift+Enter for a new line"
       onChange={(e) => { useApp.getState().update(id, { [k]: e.target.value }); fitToText(id, true) }}
       onKeyDown={(e) => {
         e.stopPropagation()
@@ -104,7 +118,10 @@ function Lines({ id, value, onChange, placeholder, children }: {
   const editing = useApp((s) => s.editing === id)
   const ref = useRef<HTMLTextAreaElement>(null)
   useEffect(() => { if (editing && ref.current) { ref.current.focus(); ref.current.select() } }, [editing])
-  useLayoutEffect(() => { if (editing) { tall(ref.current); growToContent(id) } }, [editing, value, id])
+  // as tall as its words; the element itself is fitted from a measured copy (fit.ts), never from this box,
+  // which is still at the old width in the instant after a paste
+  useLayoutEffect(() => { if (editing) tall(ref.current) }, [editing, value])
+  useLayoutEffect(() => watchWidth(editing ? ref.current : null), [editing])
   if (!editing) return <>{children}</>
   return (
     <textarea ref={ref} className="lines edit nodrag nowheel" value={value} placeholder={placeholder}

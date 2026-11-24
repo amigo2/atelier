@@ -10,13 +10,23 @@ def row_of(dlg, name):
     return dlg.locator(".dlg-row").filter(has=dlg.page.get_by_text(name, exact=True))
 
 
+def place(page, label):
+    """Pick a tool, then click in the middle of the canvas to put it there (as a person does); Esc closes the
+    words, which open for typing on anything made of them."""
+    page.locator(".tools button", has_text=label).first.click()
+    box = page.locator("main.canvas").bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    if page.locator("textarea.edit").count():
+        page.keyboard.press("Escape")
+
+
 def test_save_and_open(page, base_url, data, tmp_path):
     page.set_viewport_size({"width": 1500, "height": 900})
     page.goto(base_url + "/")
 
     page.get_by_role("button", name="New").click()
     first = page.locator(".name").input_value()
-    page.locator(".tools button", has_text="Card").first.click()
+    place(page, "Card")
     page.keyboard.press("Meta+s")
     expect(page.locator(".toast")).to_have_text(f"Saved “{first}”")
     page.get_by_role("button", name="New").click()

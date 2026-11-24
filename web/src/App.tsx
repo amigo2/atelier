@@ -8,15 +8,18 @@ import { NODE_TYPES } from './components/Shapes'
 import { Inspector } from './components/Inspector'
 import { Chat } from './components/Chat'
 import { LineDraw } from './components/LineDraw'
+import { PlaceTool } from './components/PlaceTool'
 import { exportPdf } from './exportPdf'
 import { fitToText } from './fit'
 import { exportPng } from './exportPng'
-import { POINT, PRESETS, fromDoc, newId, pagesFromDoc, pagesInOrder, toDoc, type El, type ElData, type Kind, type Look } from './model'
+import { NEW, POINT, PRESETS, fromDoc, newId, pagesFromDoc, pagesInOrder, toDoc, type El, type ElData, type Kind, type Look } from './model'
 import { SNAP, snapAt } from './snap'
 import { withLayers } from './layers'
 import { useApp } from './store'
 
 const LAST = 'atelier.last'
+// placed by a click, these open for typing at once
+const WORDY: Kind[] = ['card', 'text', 'pill', 'box']
 const CHAT_W = 330
 const clampChat = (w: number) => Math.round(Math.min(720, Math.max(240, w)))
 const INSP_W = 250
@@ -124,6 +127,17 @@ function Editor() {
     useApp.getState().setEditing(null)
     fitToText(id)
     return id
+  }
+
+  // A tool picked and waiting for a click on the canvas: the element goes there, its top-left at the click, and
+  // anything made of words opens for typing straight away.
+  const [placing, setPlacing] = useState<{ label: string; kind: Kind; data?: Partial<ElData> } | null>(null)
+  const placeAt = (screen: { x: number; y: number }) => {
+    if (!placing) return
+    const p = rf.screenToFlowPosition(screen), d = NEW[placing.kind]
+    const id = useApp.getState().add(placing.kind, { x: p.x + d.w / 2, y: p.y + d.h / 2 }, placing.data)
+    fitToText(id)
+    useApp.getState().setEditing(WORDY.includes(placing.kind) ? id : null)
   }
 
   // A picture is chosen first and placed second: an empty image element is a hole on a slide, and nobody
@@ -310,10 +324,12 @@ function Editor() {
                   if ('line' in t) {
                     const on = lineTool?.label === t.label
                     return <button key={t.label} className={on ? 'on' : ''} aria-pressed={on} title={t.hint}
-                      onClick={() => setLineTool(on ? null : { label: t.label, look: t.line })}>{t.label}</button>
+                      onClick={() => { setPlacing(null); setLineTool(on ? null : { label: t.label, look: t.line }) }}>{t.label}</button>
                   }
                   if ('image' in t) return <button key={t.label} onClick={() => pic.current?.click()} title={t.hint}>{t.label}</button>
-                  return <button key={t.label} onClick={() => add(t.kind, t.data)} title={t.hint}>{t.label}</button>
+                  const on = placing?.label === t.label
+                  return <button key={t.label} className={on ? 'on' : ''} aria-pressed={on} title={`${t.hint} · then click where it goes`}
+                    onClick={() => { setLineTool(null); setPlacing(on ? null : { label: t.label, kind: t.kind, data: t.data }) }}>{t.label}</button>
                 })}
               </div>
             </div>
@@ -376,6 +392,7 @@ function Editor() {
           </ViewportPortal>
           <Controls showInteractive={false} />
         </ReactFlow>
+        {placing && <PlaceTool label={placing.label} place={placeAt} done={() => setPlacing(null)} />}
         {lineTool && <LineDraw look={lineTool.look} label={lineTool.label} done={() => setLineTool(null)} />}
         {pages.length > 1 && (
           <div className="pagestrip" role="navigation" aria-label="Pages">

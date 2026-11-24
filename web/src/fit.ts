@@ -23,15 +23,21 @@ function natural(id: string, atWidth?: number): { w: number; h: number } | null 
   // free, its natural width (up to MAX_W); at a given width, how tall the words are when they wrap at it
   Object.assign(copy.style, { position: 'absolute', left: '0', top: '0', visibility: 'hidden', pointerEvents: 'none',
     width: atWidth ? `${atWidth}px` : 'max-content', maxWidth: atWidth ? 'none' : `${MAX_W}px`, height: 'auto' })
-  // a field being edited is a textarea, which has no natural width: measure its words instead
-  copy.querySelectorAll('textarea').forEach((t) => {
+  // A field being edited is a text box. Free, it has no natural width, so its words stand in for it. At a given
+  // width the copy of the box itself is measured: a box wraps and spaces lines a little differently from the same
+  // words as text, and a copy cannot be caught at the old width in the instant after a paste, as the real one can.
+  if (!atWidth) copy.querySelectorAll('textarea').forEach((t) => {
     const d = document.createElement('div')
     d.className = t.className.replace(/\bedit\b/, '')
-    d.style.whiteSpace = 'pre-wrap'
+    Object.assign(d.style, { whiteSpace: 'pre-wrap', border: '1px solid transparent', padding: '0 2px' })
     d.textContent = (t.value || t.placeholder) + (t.value.endsWith('\n') ? ' ' : '')
     t.replaceWith(d)
   })
   node.appendChild(copy)
+  if (atWidth) copy.querySelectorAll('textarea').forEach((t) => {
+    t.style.height = 'auto'
+    t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`
+  })
   // offsetWidth rounds to a whole pixel, and a line that needs 64.4px wraps in a 64px box: give it two spare
   const size = { w: Math.ceil(copy.offsetWidth) + 2, h: Math.ceil(copy.offsetHeight) + 2 }
   copy.remove()
@@ -58,37 +64,13 @@ export function fitToText(id: string, grow = false, keepWidth = false) {
     // keeping its width means exactly that: only the height moves
     let w = keepWidth && w0 ? w0 : Math.max(mw, want.w), h = Math.max(mh, want.h)
     if (grow) w = Math.max(w0, w)
-    if (auto) {
-      // the height its words need at the width it ends up with, not at their natural width
-      const at = w !== want.w ? natural(id, w) : want
-      h = Math.max(mh, at?.h ?? h)
-    } else if (grow) h = Math.max(h0, h)
+    // the height its words need at the width it ends up with (measured with any open text box as it will be)
+    const at = natural(id, w)
+    h = Math.max(mh, at?.h ?? h)
+    if (!auto && grow) h = Math.max(h0, h)
     if (w === w0 && h === h0 && auto === !!n.data.auto) return
     useApp.setState({ nodes: s.nodes.map((x) => (x.id === id
       ? { ...x, width: w, height: h, data: auto && !x.data.auto ? { ...x.data, auto: true } : x.data } : x)), saved: false })
-  })
-}
-
-/**
- * While a field is open on an element: grow the element (taller only) until what is inside it fits, measured
- * from the real text box, which is a little taller than the same words drawn as text.
- */
-export function growToContent(id: string) {
-  requestAnimationFrame(() => {
-    const node = document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
-    const inner = node?.querySelector<HTMLElement>('.el-in > *')
-    if (!node || !inner) return
-    // the full height of what is inside, top to bottom: centred words spill out above as well as below, and
-    // scrollHeight only counts below. Measured on screen, then back to canvas pixels.
-    const scale = node.getBoundingClientRect().height / node.offsetHeight || 1
-    const kids = [...inner.children].map((k) => k.getBoundingClientRect())
-    if (!kids.length) return
-    const box = inner.getBoundingClientRect()
-    const pad = inner.offsetHeight - inner.clientHeight + (parseFloat(getComputedStyle(inner).paddingTop) + parseFloat(getComputedStyle(inner).paddingBottom))
-    const used = (Math.max(...kids.map((k) => k.bottom)) - Math.min(...kids.map((k) => k.top))) / scale + pad
-    const over = Math.max(inner.scrollHeight - inner.clientHeight, used - box.height / scale)
-    if (over <= 1) return
-    useApp.setState((s) => ({ nodes: s.nodes.map((n) => (n.id === id ? { ...n, height: (n.height ?? node.offsetHeight) + over + 2 } : n)), saved: false }))
   })
 }
 
