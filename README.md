@@ -16,7 +16,8 @@ anywhere, delete, or import a file. ⌘S saves now. PNG exports go to your brows
 
 ## Use it
 - **Add** from the left: Card, Title, Heading, Label, Text, **List**, **Table**, **Icon**, **Bars**, Box,
-  Pill, **Image** (placed in the middle of the view). Lists, tables and bars are edited as plain lines: one
+  Pill, **Image**. Click a tool, then click on the canvas where it goes (Esc cancels); an image is placed
+  in the middle of the view. Lists, tables and bars are edited as plain lines: one
   item or row per line, cells separated by `|`, a bar as `label | value | note`. `**bold**` works anywhere
   words are shown.
 - **Icons:** ~1,500 from [Lucide](https://lucide.dev), bundled — no network, one stroke weight, one licence.
@@ -25,6 +26,8 @@ anywhere, delete, or import a file. ⌘S saves now. PNG exports go to your brows
 - **Images:** a screenshot, a photo or a logo, stored beside the diagrams in `data/images` and named by the
   hash of its contents, so the same picture on four slides is kept once. PNG, JPEG, WebP or GIF, up to 12 MB.
 - **Edit words** with a double-click (or Enter on the selected one); colour, emoji and size on the right.
+  Enter saves; Shift+Enter is a new line. ⌘B / ⌘I / ⌘⇧X format the selected words, and the panel on the
+  right has a rich editor (bold, italic, strike, colour, size, bullets).
 - **Arrows:** drag from a dot on a shape's side and drop on another shape. Select an arrow to label it.
 - **Resize** from the corners; **move** by dragging. **Select several** by dragging on the canvas, Shift-click, or ⌘A; Delete removes them all.
 - **Move around** with Space + drag (or the middle mouse button, or the trackpad); pinch or ⌘-scroll to zoom.
@@ -59,7 +62,8 @@ after the import squeezes the spacing are named, not cut, so you know which ones
 
 ## Tests
 ```bash
-cd api && .venv/bin/pytest -q            # the API
+cd web && npm test                       # unit tests (rich-text round trips)
+cd ../api && .venv/bin/pytest -q            # the API
 cd .. && api/.venv/bin/pytest e2e        # the editor in Chrome (build web first)
 ```
 
